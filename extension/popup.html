@@ -7,7 +7,7 @@
   </head>
   <body>
     <h1>foxpay</h1>
-    <p class="muted">Test cards only. No money moves.</p>
+    <p class="muted">Test cards and testnet only. No money moves.</p>
 
     <section>
       <h2>Budget</h2>
@@ -19,6 +19,7 @@
       <ul id="pending"></ul>
       <p class="muted">Approve pays this exact action one time.</p>
       <output id="approve-result"></output>
+      <pre id="approve-body"></pre>
     </section>
 
     <section>
@@ -34,6 +35,27 @@
       <label>Idempotency key <input id="key" /></label>
       <button id="ask">Ask to pay</button>
       <output id="ask-result"></output>
+    </details>
+
+    <details>
+      <summary>Simulated agent: paid API (x402)</summary>
+      <label>URL <input id="api-url" /></label>
+      <label>Amount in test USDC units (6 decimals) <input id="api-amount" inputmode="numeric" /></label>
+      <label>Reason <input id="api-reason" /></label>
+      <label>Idempotency key <input id="api-key" /></label>
+      <button id="call">Call the paid API</button>
+      <output id="call-result"></output>
+    </details>
+
+    <details>
+      <summary>Setup: paid API</summary>
+      <p class="muted">Base Sepolia test wallets only.</p>
+      <label>Test wallet key <input id="wallet-key" autocomplete="off" /></label>
+      <label>API host <input id="api-host" value="api.localhost" /></label>
+      <label>Recipient address <input id="pay-to" /></label>
+      <label>Spend cap in test USDC <input id="api-cap" value="0.05" /></label>
+      <button id="setup-api">Save</button>
+      <output id="setup-api-result"></output>
     </details>
 
     <details>
