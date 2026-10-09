@@ -146,6 +146,35 @@ describe("card fill", () => {
     expect(field(s, "#card")).toBe("");
   });
 
+  it("C13: a lost submit result is unsettled, not failed", async () => {
+    const s = await setup();
+    const asked = await ask(s);
+    s.hooks.before = (fn) => {
+      if (fn === "submitCheckout") throw new Error("the page navigated");
+    };
+    expect(await approve(s, asked)).toMatchObject({ status: "unsettled", receipt: { failure: "submit-unknown" } });
+  });
+
+  it("C14: a failure after the number fill clears the card fields", async () => {
+    const s = await setup({ html: checkout("$26.00", `<input name="card" id="card"></form><form>`).replace('<input name="exp" id="exp">', "") });
+    expect(await approve(s, await ask(s))).toMatchObject({ status: "failed", receipt: { failure: "not-found" } });
+    expect(field(s, "#card")).toBe("");
+  });
+
+  it("C15: a failed payment cancels the virtual card; a submitted one does not", async () => {
+    const cancelled: string[] = [];
+    const provider: VirtualCardProvider = {
+      createCard: async () => ({ id: `vc_${cancelled.length}`, number: "4000056655665556", exp: "11/29", cvc: "424" }),
+      cancelCard: async (id) => void cancelled.push(id),
+    };
+    const ok = await setup({ provider });
+    expect((await approve(ok, await ask(ok))).status).toBe("submitted");
+    expect(cancelled).toEqual([]);
+    const bad = await setup({ provider, html: checkout("$26.00", "") });
+    expect((await approve(bad, await ask(bad))).status).toBe("failed");
+    expect(cancelled).toEqual(["vc_0"]);
+  });
+
   it("C4: a total that changes after approval is refused before the fill", async () => {
     const s = await setup();
     const asked = await ask(s);

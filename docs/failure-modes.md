@@ -56,6 +56,9 @@ facilitator.
 | C9 | Card data goes into a receipt, an event, an error, or a return value. | Receipts hold the last 4 digits only. No number, expiry, or CVC goes anywhere else. | `tests/card.test.ts` |
 | C11 | The tab loads a new page after the check and before the fill. | foxpay checks the page again before the card number goes out, and refuses `page-changed`. The new page gets nothing. | `tests/card.test.ts` |
 | C12 | Storing the virtual card in the vault fails half way. | foxpay removes every card handle it made. | `tests/card.test.ts` |
+| C13 | The submit script starts, and then its result is lost, for example because the page navigates. | The order may be placed, so the status is `unsettled` with `submit-unknown`, never `failed`. | `tests/card.test.ts` |
+| C14 | A step after the card number fill fails, so the number stays in the form. | foxpay clears the card fields in the same document before it reports the failure. | `tests/card.test.ts` |
+| C15 | A payment with a virtual card fails, and the card stays open at the provider. | foxpay calls `cancelCard` on the provider when the payment is not submitted. | `tests/card.test.ts` |
 | C10 | The virtual card provider gets a wrong limit, or a card stays in the vault after use. | The provider gets the approved amount and the merchant. foxpay removes the card handles after the fill, also when the fill fails. A provider error fails the payment with no fill. | `tests/card.test.ts` |
 
 ## x402
