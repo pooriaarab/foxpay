@@ -107,7 +107,7 @@ try {
   check("E4: a retry with the same key gives the receipt", "paid", await press(popup, "#call", "#call-result"));
   check("E4: still one settlement and one signed request from the extension", [1, 2], [paid.api.settled.length, signed().length]);
 
-  check("E5: the budget shows both caps", ["USD: cap $100.00, spent $26.00, left $74.00", "test USDC: cap 0.050000, spent 0.010000, left 0.040000"], await texts(popup, "#budget li"));
+  check("E5: the budget shows both caps", ["USD: cap $100.00, spent $26.00, left $74.00", "Base Sepolia USDC: cap 0.050000, spent 0.010000, left 0.040000"], await texts(popup, "#budget li"));
   check("E5: the receipts list both payments", 2, (await texts(popup, "#receipts li")).length);
 
   // E6: no card data and no wallet key in the popup or in storage.local.

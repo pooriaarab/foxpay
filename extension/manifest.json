@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "foxpay demo",
-  "version": "0.1.1",
+  "name": "foxpay — agent payments with approvals",
+  "version": "0.1.2",
   "description": "Agent payments with spend caps and approval for each payment.",
+  "icons": { "48": "icons/icon-48.png", "96": "icons/icon-96.png", "128": "icons/icon-128.png" },
   "browser_specific_settings": {
     "gecko": {
       "id": "foxpay@pooriaarab",
@@ -13,12 +14,13 @@
     }
   },
   "permissions": ["storage", "publicSuffix", "scripting", "webNavigation"],
-  "host_permissions": ["http://localhost/*", "http://*.localhost/*"],
+  "host_permissions": ["http://*.localhost/*"],
   "background": {
     "scripts": ["background.js"]
   },
   "action": {
-    "default_title": "foxpay demo",
+    "default_icon": { "48": "icons/icon-48.png", "96": "icons/icon-96.png" },
+    "default_title": "foxpay",
     "default_popup": "popup.html"
   }
 }
