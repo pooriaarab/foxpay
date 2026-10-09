@@ -113,12 +113,18 @@ describe("complete", () => {
     expect((await t.pay.complete(asked.id, token)).status).toBe("paid");
   });
 
-  it("a method that throws fails the payment with no message from the method", async () => {
+  it("I19: a method that throws may have moved money, so the payment is unsettled", async () => {
     const t = await setup();
     t.fake.state.fail = true;
     const done = await approve(t, await ask(t));
-    expect(done).toMatchObject({ status: "failed", receipt: { status: "failed", failure: "method-error" } });
+    expect(done).toMatchObject({ status: "unsettled", receipt: { status: "unsettled", failure: "method-error" } });
     expect(JSON.stringify([done, t.events, await t.store.get("foxpay")])).not.toContain("4242");
+  });
+
+  it("I19: a PayRefusal from pay, raised before any money moves, is failed with its reason", async () => {
+    const t = await setup();
+    t.fake.state.refuse = "provider-error";
+    expect(await approve(t, await ask(t))).toMatchObject({ status: "failed", receipt: { status: "failed", failure: "provider-error" } });
   });
 
   it("I18: a stored intent that a no-approval grant now allows still runs the check", async () => {
