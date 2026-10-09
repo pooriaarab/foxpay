@@ -62,13 +62,16 @@ transcripts. Full rule: pooriaarab/agents-private `rules/fleet-claim.md`.
 ## Layout
 
 ```text
-src/              the library source, built to dist/ by tsc
+src/intent.ts     intents, quotes, approvals, idempotency, receipts
+src/card.ts       card fill from foxvault into the top document
+src/x402.ts       x402 v2 on Base Sepolia; src/eip712.ts signs EIP-3009
+src/testing.ts    fakeX402Api, exported as foxpay/testing
 tests/            tests for the failure modes in docs/failure-modes.md
 docs/failure-modes.md  every way the code can fail, written before the code
 .github/          CI, release, PR and issue standards
 extension/        the demo extension that shows this repo working in Firefox
 scripts/build-ext.mjs  bundles extension/ into dist-ext/ with esbuild
-e2e/run.mjs       the Firefox E2E test; writes artifacts/e2e-<date>.json
+e2e/run.mjs       the Firefox E2E test (foxbench shop + fake x402 API); writes artifacts/e2e-<date>.json
 ```
 
 ## Commands
