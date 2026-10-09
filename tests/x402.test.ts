@@ -32,6 +32,7 @@ async function ask(s: S, over: Record<string, unknown> = {}) {
   return r;
 }
 const approve = async (s: S, asked: { id: string; requestId: string }) => s.pay.complete(asked.id, await s.host.approve(asked.requestId));
+const garbage = async () => new Response("{}", { status: 402, headers: { "payment-required": "not base64 json!" } });
 const signed = (s: S) => s.api.log.filter((l) => l.payment !== null);
 
 describe("x402", () => {
@@ -56,8 +57,10 @@ describe("x402", () => {
     const replay = await s.api.fetch(URL1, { headers: { "payment-signature": signed(s)[0]!.payment! } });
     expect(replay.status).toBe(402);
     expect(decodeHeader(replay.headers.get("payment-response")!)).toMatchObject({ success: false, errorReason: "nonce_used" });
-    expect(await s.pay.complete(asked.id, token)).toEqual(done);
-    expect(await s.pay.request(intent())).toEqual(done);
+    // The body is not stored, so a retry gives the receipt without it.
+    const { body: _, ...stored } = done as typeof done & { body?: string };
+    expect(await s.pay.complete(asked.id, token)).toEqual(stored);
+    expect(await s.pay.request(intent())).toEqual(stored);
     expect(s.api.settled).toHaveLength(1);
     const second = await approve(s, await ask(s, { idempotencyKey: "call-0002" }));
     expect(second.status).toBe("paid");
@@ -89,7 +92,6 @@ describe("x402", () => {
       expect(await s.pay.request(intent()), amount).toMatchObject({ status: "refused", reason: "bad-requirements" });
     }
     const s = await setup();
-    const garbage = async () => new Response("{}", { status: 402, headers: { "payment-required": "not base64 json!" } });
     const pay = createFoxpay({ gate: s.gate, store: s.store, methods: { x402: x402({ vault: s.vault, wallet: "vault:wallet", payTo: { "api.example": PAY_TO }, fetch: garbage }) } });
     expect(await pay.request(intent())).toMatchObject({ status: "refused", reason: "bad-requirements" });
   });
