@@ -243,13 +243,30 @@ status is `paid` with a settlement, or else `unsettled` with a reason:
 that no money moved. Check an `unsettled` payment on the chain before you
 pay again.
 
-### Other exports
+### Write your own method
+
+A `PayMethod` has `quote(intent)`, an optional `check(context)`, and
+`pay(context)`.
+
+- `quote` reads the amount and the payee on the host side. Throw
+  `PayRefusal` to refuse. Nothing has been approved yet.
+- `check` runs before foxgate uses the token. Return a reason, for example
+  `amount-changed` or `locked`, to stop with no spend.
+- `pay` returns `{ status, reason?, proof?, body? }`. Return `failed` only
+  when you know that no money moved. When you do not know, return
+  `unsettled`.
+- From `pay`, throw `PayRefusal` only before any money can move. foxpay
+  records it as `failed` with its reason. foxpay records any other error
+  from `pay` as `unsettled` with `method-error`, because it can come after
+  money moved. The error message is not kept.
+
+
 
 | Export | What it does |
 |---|---|
 | `payTools()`, `PAY_TOOL` | The foxgate tool registry entry `foxpay.pay`, with an amount function that reads the quoted amount. |
 | `GATE_CURRENCY` | `{ USDC: "XTS" }`. foxgate takes 3-letter codes, so test USDC counts as XTS, the ISO 4217 code for tests. |
-| `PayRefusal` | Throw it from your own `PayMethod` to refuse with a reason. |
+| `PayRefusal` | Throw it from your own `PayMethod` to refuse with a reason. See "Write your own method". |
 | `BASE_SEPOLIA` | The network, chain id, USDC contract, and token domain that x402 accepts. |
 | `encodeHeader`, `decodeHeader` | Base64 JSON for the x402 headers. |
 | `signAuthorization`, `recoverAuthorizer`, `authorizationDigest`, `addressOf`, `checksumAddress` | The EIP-712 and EIP-3009 helpers. |
