@@ -1,11 +1,11 @@
 // Shared setup for the intent tests: a real foxgate, a fake payment method,
 // and an intent builder. No money moves.
 import { createFoxgate, memoryStore, type GrantInput } from "foxgate";
-import { PAY_TOOL, createFoxpay, payTools, type PayMethod } from "../src/index.js";
+import { PAY_TOOL, PayRefusal, createFoxpay, payTools, type PayMethod } from "../src/index.js";
 
 export function fakeMethod() {
   const calls = { quote: 0, check: 0, pay: 0 };
-  const state = { price: 1999, currency: "USD", checkReason: undefined as string | undefined, hang: false, fail: false };
+  const state = { price: 1999, currency: "USD", checkReason: undefined as string | undefined, hang: false, fail: false, refuse: undefined as string | undefined };
   const method: PayMethod = {
     async quote(intent) {
       calls.quote++;
@@ -18,6 +18,7 @@ export function fakeMethod() {
     async pay() {
       calls.pay++;
       if (state.hang) await new Promise(() => undefined);
+      if (state.refuse) throw new PayRefusal(state.refuse);
       if (state.fail) throw new Error("card 4242424242424242 declined");
       return { status: "paid", proof: { ref: `r-${calls.pay}` } };
     },
