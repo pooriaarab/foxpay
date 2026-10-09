@@ -149,11 +149,6 @@ async function guard<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
-const done = (rec: Rec): CompleteResult => {
-  if (rec.status !== "paying") return { status: rec.status as PayStatus, id: rec.id, receipt: rec.receipt! };
-  return refused("in-progress", "This intent pays now.", rec.id) as CompleteResult;
-};
-
 function parseIntent(input: unknown, methods: Record<string, PayMethod>): Intent {
   if (!plain(input)) return bad("not an object");
   for (const k of Object.keys(input)) if (!INTENT_KEYS.has(k)) bad(`unknown field ${k}`);
@@ -196,6 +191,13 @@ export function createFoxpay(options: FoxpayOptions) {
     return raw as unknown as Data;
   }
   const save = (data: Data) => store.set(KEY, data);
+  // Intents that pay now, in this object. After a restart, "paying" means the outcome is not known.
+  const running = new Set<string>();
+  const done = (rec: Rec): CompleteResult => {
+    if (rec.status !== "paying") return { status: rec.status as PayStatus, id: rec.id, receipt: rec.receipt! };
+    if (running.has(rec.id)) return refused("in-progress", "This intent pays now.", rec.id) as CompleteResult;
+    return refused("outcome-unknown", "A payment for this intent started, and its outcome is not known. foxpay does not pay it again.", rec.id) as CompleteResult;
+  };
   async function emit(kind: PayEvent["kind"], data: Record<string, unknown>) {
     try {
       await onEvent?.({ actor: "foxpay", kind, data });
@@ -223,6 +225,7 @@ export function createFoxpay(options: FoxpayOptions) {
     rec.status = "paying";
     data.intents[rec.id] = rec;
     await save(data);
+    running.add(rec.id);
     return "pay";
   }
 
@@ -243,6 +246,7 @@ export function createFoxpay(options: FoxpayOptions) {
       proof: outcome.proof ?? {},
     };
     return locked(async () => {
+      running.delete(rec.id);
       // When the save fails, the store keeps "paying", so a later call refuses outcome-unknown.
       try {
         const data = await load();
@@ -286,6 +290,40 @@ export function createFoxpay(options: FoxpayOptions) {
     }
   }
 
+  async function complete(id: string, token: string): Promise<CompleteResult> {
+    let rec: Rec | undefined;
+    try {
+      const out = await locked(async (): Promise<CompleteResult | undefined> => {
+        const data = await load();
+        const found = typeof id === "string" && Object.hasOwn(data.intents, id) ? data.intents[id] : undefined;
+        if (!found) return refused("not-found", "No intent has this id.") as CompleteResult;
+        if (found.status !== "awaiting") return done(found);
+        // The method checks the page or the vault before foxgate uses the token (I16, I17).
+        const check = methods[found.intent.method]!.check;
+        const stop = check && (await guard(() => check({ id, intent: found.intent, quote: found.quote })));
+        if (stop) return refused(stop, `The payment cannot run now: ${stop}.`, id) as CompleteResult;
+        await emit("pay.start", summary(found));
+        const decision = await gate.redeem(token, found.action);
+        if (decision.decision !== "allow") {
+          const deny = decision.decision === "deny" ? decision : { reason: "bad-token", message: "The token is not valid." };
+          return refused(deny.reason, deny.message, id) as CompleteResult;
+        }
+        found.status = "paying";
+        await save(data);
+        running.add(id);
+        await emit("pay.approved", { ...summary(found), requestId: found.requestId }).catch(() => undefined);
+        rec = found;
+        return undefined;
+      });
+      if (out) return out;
+    } catch (error) {
+      if (error instanceof PayRefusal) return refused(error.reason, error.message, id) as CompleteResult;
+      return refused("storage-error", "Cannot read or save the foxpay record.", id) as CompleteResult;
+    }
+    // A second call at the same time sees "paying" above, so this runs one time (I8).
+    return run(rec!);
+  }
+
   async function list(): Promise<Rec[]> {
     return Object.values((await load()).intents);
   }
@@ -293,6 +331,8 @@ export function createFoxpay(options: FoxpayOptions) {
   return Object.freeze({
     /** Check an intent, quote it, and ask foxgate. A retry with the same key gives the same answer. */
     request,
+    /** Pay an approved intent with the foxgate token. It pays one time; later calls give the receipt. */
+    complete,
     /** Every intent that waits, runs, or ran, with its quote and status. */
     intents: async () => (await list()).map((r) => ({ ...summary(r), status: r.status, ...(r.requestId && { requestId: r.requestId }) })),
     receipts: async () => (await list()).flatMap((r) => (r.receipt ? [r.receipt] : [])).toSorted((a, b) => a.paidAt - b.paidAt),
