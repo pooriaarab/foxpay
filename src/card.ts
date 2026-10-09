@@ -171,6 +171,9 @@ export function cardFill(options: CardFillOptions): PayMethod {
   }
 
   async function fill(intent: Intent, hold: Hold, handles: { number: string; details: string }): Promise<string> {
+    // The page can change after the check. Check it again before the number goes out (C11).
+    // foxvault fills the current top document, so a load in the short time after this check stays a limit.
+    await samePage(intent, hold);
     // oxlint-disable-next-line unicorn/no-array-fill-with-reference-type -- this is foxvault fill, not Array#fill
     const filled = await vault.fill({ handle: handles.number, tabId: hold.tabId, selector: fields.number });
     if (filled.status !== "filled") return filled.status === "refused" ? filled.reason : "fill-asks";
@@ -198,6 +201,7 @@ export function cardFill(options: CardFillOptions): PayMethod {
     const hold = q.hold as Hold;
     let handles = card;
     let proof: Record<string, unknown> = {};
+    let vcard: Awaited<ReturnType<VirtualCardProvider["createCard"]>> | undefined;
     if (provider) {
       let made: Awaited<ReturnType<VirtualCardProvider["createCard"]>>;
       try {
@@ -207,19 +211,24 @@ export function cardFill(options: CardFillOptions): PayMethod {
       }
       const name = `vault:fpy-vc-${crypto.randomUUID().slice(0, 8)}`;
       handles = { number: name, details: `${name}.details` };
-      await vault.set(handles.number, made.number, { domains: [q.payee], allowHttp: options.allowHttp ?? false });
-      await vault.set(handles.details, `${made.exp} ${made.cvc}`, { domains: [q.payee], allowHttp: options.allowHttp ?? false });
       proof = { last4: made.number.slice(-4), card: made.id };
+      vcard = made;
     } else {
       proof = { last4: await vault.use(card!.number, (value) => value.slice(-4)), card: card!.number };
     }
     try {
+      if (vcard) {
+        // Inside the try, so a half-stored card is removed too (C12).
+        await vault.set(handles!.number, vcard.number, { domains: [q.payee], allowHttp: options.allowHttp ?? false });
+        await vault.set(handles!.details, `${vcard.exp} ${vcard.cvc}`, { domains: [q.payee], allowHttp: options.allowHttp ?? false });
+      }
       const result = await fill(intent, hold, handles!);
       if (result !== "submitted") return { status: "failed", reason: result, proof };
       const page = await after(hold);
       return { status: "submitted", proof: { ...proof, ...(page && { page }) } };
     } catch (error) {
-      return { status: "failed", reason: error instanceof PayRefusal ? error.reason : "fill-error", proof };
+      const reason = error instanceof PayRefusal ? error.reason : (error as { code?: string }).code === "bad-value" ? "provider-card" : "fill-error";
+      return { status: "failed", reason, proof };
     } finally {
       // A virtual card is for this payment only (C10).
       if (provider) for (const handle of [handles!.number, handles!.details]) await vault.remove(handle).catch(() => false);

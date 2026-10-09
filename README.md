@@ -287,6 +287,10 @@ that pays one time while a replay is refused.
 - There is no real virtual card provider yet. `VirtualCardProvider` is the
   interface for one, such as Stripe Issuing or Privacy.com. The tests use a
   fake provider.
+- foxvault fills the card number into the current top document of the tab.
+  foxpay checks the page and its `documentId` just before that fill, but a
+  page load in the short time between the check and the fill is not blocked.
+  A foxvault fill that takes a `documentId` would close this gap.
 - Card fill works in the top document only. A card form inside an iframe,
   for example a hosted payment field, cannot be filled.
 - A card payment ends as `submitted`. foxpay sees the page after submit, not
@@ -298,7 +302,9 @@ that pays one time while a replay is refused.
   own bundled function, pinned to the same document. `redact` finds that
   pair, not the CVC alone.
 - foxgate counts the spend when the token is used. A payment that fails
-  after that still counts against the cap.
+  after that still counts against the cap. Before the token, foxpay checks
+  the page total or fetches the `402` again, so a changed price is refused
+  with no spend.
 - `outcome-unknown` needs a person. foxpay does not check with the merchant
   or the chain if an interrupted payment went through.
 - Run one foxpay object, one foxgate gate, and one vault for each store, in

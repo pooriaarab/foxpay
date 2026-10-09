@@ -37,8 +37,9 @@ facilitator.
 | I13 | The `onEvent` hook throws before a payment. | Refuse `hook-failed`. Nothing pays. | `tests/intent.test.ts` |
 | I14 | The approval hides a part of the payment. | The request text names the merchant, the amount, the currency, the reason, the method, and the payee. | `tests/intent.test.ts` |
 | I15 | The stored foxpay record is not readable. | Refuse `storage-error`. Nothing pays. | `tests/intent.test.ts` |
-| I16 | The amount changes between approval and payment. | The method check before payment sees it and refuses `amount-changed`. foxgate counts no spend. | `tests/intent.test.ts`, C4, X10 |
+| I16 | The amount changes between approval and payment. | The method check before payment sees it and refuses `amount-changed`. foxgate counts no spend. | `tests/intent.test.ts`, C4, X16 |
 | I17 | The vault is locked at payment time. | Refuse `locked` before foxgate uses the token. The human can unlock and complete again. | `tests/intent.test.ts`, X12 |
+| I18 | A stored intent is retried after its grant changed to no approval, so it pays with no `complete`. | The method check still runs first, and the payment emits `pay.approved`. | `tests/complete.test.ts` |
 
 ## Card fill
 
@@ -53,6 +54,8 @@ facilitator.
 | C7 | The stored card does not allow the merchant domain. | foxvault refuses `domain`. Nothing is filled. | `tests/card.test.ts` |
 | C8 | The page has no total that foxpay can read. | Refuse `no-total` at quote time. | `tests/card.test.ts` |
 | C9 | Card data goes into a receipt, an event, an error, or a return value. | Receipts hold the last 4 digits only. No number, expiry, or CVC goes anywhere else. | `tests/card.test.ts` |
+| C11 | The tab loads a new page after the check and before the fill. | foxpay checks the page again before the card number goes out, and refuses `page-changed`. The new page gets nothing. | `tests/card.test.ts` |
+| C12 | Storing the virtual card in the vault fails half way. | foxpay removes every card handle it made. | `tests/card.test.ts` |
 | C10 | The virtual card provider gets a wrong limit, or a card stays in the vault after use. | The provider gets the approved amount and the merchant. foxpay removes the card handles after the fill, also when the fill fails. A provider error fails the payment with no fill. | `tests/card.test.ts` |
 
 ## x402
@@ -68,7 +71,10 @@ facilitator.
 | X7 | The URL answers with no `402`. | Refuse `not-402`. Sign nothing. | `tests/x402.test.ts` |
 | X8 | Someone replays a signed payload. | Each payment has a new random 32-byte nonce, and foxpay sends each payload one time. The fake facilitator refuses a used nonce. | `tests/x402.test.ts`, E4 |
 | X9 | The facilitator says `success` but gives no settlement: no transaction hash, or another network. | The receipt status is `unsettled`, not `paid`. A `confirm` hook that says no also gives `unsettled`. | `tests/x402.test.ts` |
-| X10 | The server answers `402` again after payment, for example because the price went up. | The receipt status is `failed` with the server reason. foxpay never signs a second time by itself. | `tests/x402.test.ts` |
+| X10 | The facilitator refuses the payment, for example for low funds. | The receipt status is `failed` with the server reason. foxpay never signs a second time by itself. | `tests/x402.test.ts` |
+| X14 | The server answers with an error after it got the signed payment, for example `500` or a `402` with no refusal. | The authorization can still settle, so the receipt status is `unsettled`, not `failed`. | `tests/x402.test.ts` |
+| X15 | The URL redirects to another host. | foxpay does not follow redirects, so the signed payload goes to the approved URL only. A redirect is `not-402` at quote time and `unsettled` after payment. | `tests/x402.test.ts` |
+| X16 | The price in the `402` changes after approval. | The check before the token fetches the `402` again and refuses `amount-changed`. foxgate counts no spend. | `tests/x402.test.ts` |
 | X11 | The wallet key leaks into a log, an event, an error, the store, or the model context. | The key stays in foxvault. foxpay uses it inside `vault.use` only. No output holds it. | `tests/x402.test.ts` |
 | X12 | The vault is locked. | Refuse `locked` before the token is used. | `tests/x402.test.ts` |
 | X13 | The signature is wrong, so a real facilitator would refuse it. | The EIP-712 digest and the signature are equal to those from viem. The signer address recovers. | `tests/eip712.test.ts` |

@@ -95,7 +95,8 @@ export function x402(options: X402Options): PayMethod {
     const payTo = Object.hasOwn(options.payTo, intent.merchant) ? options.payTo[intent.merchant]! : undefined;
     if (!payTo) throw new PayRefusal("no-recipient", `No recipient is set for ${intent.merchant}.`);
     if (!(await vault.list()).some((s) => s.handle === wallet)) throw new PayRefusal("no-wallet", "The vault does not hold the wallet key.");
-    const res = await http(url.href).catch(() => undefined);
+    // No redirects: a signed payload must go to the approved URL only (X15).
+    const res = await http(url.href, { redirect: "manual" }).catch(() => undefined);
     if (res?.status !== 402) throw new PayRefusal("not-402", "The URL did not answer 402 Payment Required.");
     let required: unknown;
     try {
@@ -123,9 +124,18 @@ export function x402(options: X402Options): PayMethod {
     return { amount, currency: "USDC", payee: `${accepted.payTo} on ${BASE_SEPOLIA.network}`, hold };
   }
 
-  async function check() {
-    if ((await vault.status()) === "unlocked") return undefined;
-    return vault.unlock().then(() => undefined, () => "locked");
+  // Before foxgate uses the token: the vault is open, and the 402 still asks for the approved payment (X12, X16).
+  async function check({ intent, quote: q }: PayContext) {
+    if ((await vault.status()) !== "unlocked" && !(await vault.unlock().then(() => true, () => false))) return "locked";
+    const { accepted } = q.hold as Hold;
+    try {
+      const now402 = await quote(intent);
+      const fresh = (now402.hold as Hold).accepted;
+      return fresh.amount === accepted.amount && same(fresh.payTo, accepted.payTo) && same(fresh.asset, accepted.asset) ? undefined : "amount-changed";
+    } catch (error) {
+      if (error instanceof PayRefusal) return error.reason === "requirements-mismatch" ? "amount-changed" : error.reason;
+      throw error;
+    }
   }
 
   async function pay({ quote: q }: PayContext): Promise<PayOutcome> {
@@ -147,7 +157,7 @@ export function x402(options: X402Options): PayMethod {
     const proof = { network: BASE_SEPOLIA.network, payer: signed.authorization.from, nonce };
     const payload: PaymentPayload = { x402Version: 2, resource, accepted, payload: signed };
     // One send per payload. foxpay never sends it again (X8).
-    const res = await http(url, { headers: { "payment-signature": encodeHeader(payload) } }).catch(() => undefined);
+    const res = await http(url, { headers: { "payment-signature": encodeHeader(payload) }, redirect: "manual" }).catch(() => undefined);
     if (!res) return { status: "unsettled", reason: "no-response", proof };
     let settlement: Record<string, unknown> = {};
     try {
@@ -156,9 +166,10 @@ export function x402(options: X402Options): PayMethod {
     } catch {
       // No settlement header: handled below.
     }
-    if (res.status !== 200) {
-      const why = typeof settlement.errorReason === "string" && /^[a-z0-9_]{1,64}$/.test(settlement.errorReason) ? settlement.errorReason : `http-${res.status}`;
-      return { status: "failed", reason: why, proof };
+    if (res.status < 200 || res.status > 299) {
+      // Only an explicit refusal is a failure. Any other error can still settle before validBefore (X14).
+      const refused = res.status === 402 && settlement.success === false && typeof settlement.errorReason === "string" && /^[a-z0-9_]{1,64}$/.test(settlement.errorReason);
+      return refused ? { status: "failed", reason: settlement.errorReason as string, proof } : { status: "unsettled", reason: `http-${res.status}`, proof };
     }
     const body = await res.text();
     const transaction = settlement.transaction;
