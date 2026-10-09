@@ -43,6 +43,8 @@ export interface Quote {
   currency: string;
   /** Who gets the money, as the human sees it. */
   payee: string;
+  /** More facts that the human must see, for example the URL that a payment is for. The token binds them. */
+  details?: Record<string, string>;
   /** Plain JSON that the method keeps for check and pay. It goes into the store, so never a secret. */
   hold?: unknown;
 }
@@ -283,7 +285,7 @@ export function createFoxpay(options: FoxpayOptions) {
         const quote = await guard(() => methods[intent.method]!.quote(intent));
         if (quote.currency !== intent.currency) return refused("currency-mismatch", `The merchant asks for ${quote.currency}, not ${intent.currency}. foxpay does not convert.`);
         if (quote.amount !== intent.amount) return refused("amount-mismatch", `The merchant asks for ${quote.amount}, not ${intent.amount}.`);
-        const args = { intent: id, merchant: intent.merchant, amount: quote.amount, currency: quote.currency, reason: intent.reason, method: intent.method, payee: quote.payee };
+        const args = { intent: id, merchant: intent.merchant, amount: quote.amount, currency: quote.currency, reason: intent.reason, method: intent.method, payee: quote.payee, ...(quote.details && { details: quote.details }) };
         const rec: Rec = { id, intent, quote, action: { tool: PAY_TOOL, scope: "pay", domain: intent.merchant, args }, status: "awaiting" };
         const result = await decide(data, rec);
         return result === "pay" ? rec : result;

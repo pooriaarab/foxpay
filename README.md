@@ -108,7 +108,8 @@ flowchart TD
    the top document of the merchant tab. x402 reads the `PAYMENT-REQUIRED`
    header. When the planner amount or currency is different, foxpay refuses.
    It never converts currencies.
-3. foxpay builds a foxgate `pay` action from the quote. The `amount` function
+3. foxpay builds a foxgate `pay` action from the quote. For x402, the action
+   also names the URL and the `402` resource URL in `details`. The `amount` function
    that `payTools()` registers reads the quoted amount, so the planner cannot
    set it. foxgate refuses an amount over the cap before it asks anyone.
 4. The human approves the exact action. foxgate signs a one-time token.
