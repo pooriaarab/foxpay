@@ -189,7 +189,8 @@ provider card id, the page after submit, or the payer, the nonce, the network,
 and the transaction hash.
 
 Statuses: `paid` (x402 with a settlement), `submitted` (card checkout
-submitted), `unsettled` (no settlement proof), `failed`.
+submitted), `unsettled` (no settlement proof; money may have moved), and
+`failed` (foxpay knows that nothing was paid).
 
 Refusal reasons: `bad-intent`, `key-reused`, `amount-mismatch`,
 `currency-mismatch`, `in-progress`, `outcome-unknown`, `not-found`,
@@ -225,10 +226,18 @@ Reasons: `bad-target`, `no-tab`, `http`, `merchant-mismatch`, `page-changed`,
 | `confirm` | `(settlement) => Promise<boolean>`. Check the transaction yourself, for example on an RPC node. When it says no, the receipt is `unsettled`. |
 | `maxTimeoutSeconds` | The longest time a signed authorization stays valid. Default: 300. |
 
-Reasons: `bad-target`, `merchant-mismatch`, `no-recipient`, `no-wallet`,
-`not-402`, `bad-requirements`, `requirements-mismatch`, `locked`; after
-payment, `sign-error`, `no-response`, `no-settlement`, `not-confirmed`, or the
-server `errorReason`.
+Reasons before the payment: `bad-target`, `merchant-mismatch`,
+`no-recipient`, `no-wallet`, `not-402`, `bad-requirements`,
+`requirements-mismatch`, `amount-changed`, `locked`, and `sign-error`
+(status `failed`). foxpay does not follow redirects.
+
+After foxpay sends the signed payload, the payee holds a valid authorization
+until `validBefore`. So x402 never returns `failed` after that point. The
+status is `paid` with a settlement, or else `unsettled` with a reason:
+`no-response`, `read-error`, `no-settlement`, `not-confirmed`,
+`http-<status>`, or the payee's `errorReason`. A payee refusal is not proof
+that no money moved. Check an `unsettled` payment on the chain before you
+pay again.
 
 ### Other exports
 
