@@ -5,3 +5,5 @@ export { cardFill } from "./card.js";
 export type { CardBrowser, CardFillOptions, VirtualCardProvider } from "./card.js";
 export { addressOf, authorizationDigest, checksumAddress, recoverAuthorizer, signAuthorization } from "./eip712.js";
 export type { Authorization, TokenDomain } from "./eip712.js";
+export { BASE_SEPOLIA, decodeHeader, encodeHeader, x402 } from "./x402.js";
+export type { PaymentPayload, PaymentRequirements, X402Options } from "./x402.js";
