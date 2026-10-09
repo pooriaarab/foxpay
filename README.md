@@ -21,8 +21,10 @@ fake card provider, the Base Sepolia testnet, and a local fake facilitator.
 ## Install
 
 ```bash
-npm i foxpay
+npm i @pooriaarab/foxpay
 ```
+
+The npm package is `@pooriaarab/foxpay`: npm refuses the plain name `foxpay` as too similar to an existing package (fox-pay).
 
 ## Example
 
@@ -31,8 +33,8 @@ This example pays a fake x402 API in Node. It runs as written.
 ```js
 import { createFoxgate, memoryStore } from "foxgate";
 import { createVault } from "foxvault";
-import { PAY_TOOL, createFoxpay, payTools, x402 } from "foxpay";
-import { fakeX402Api } from "foxpay/testing";
+import { PAY_TOOL, createFoxpay, payTools, x402 } from "@pooriaarab/foxpay";
+import { fakeX402Api } from "@pooriaarab/foxpay/testing";
 
 // A Base Sepolia test key and recipient. The fake API stands in for a paid API.
 const WALLET_KEY = "0x4c0883a69102937d6231471b5dbb6204fe5129617082792ae468d01a3f362318";
