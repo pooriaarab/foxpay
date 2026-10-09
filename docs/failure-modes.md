@@ -55,6 +55,7 @@ facilitator.
 | C8 | The page has no total that foxpay can read. | Refuse `no-total` at quote time. | `tests/card.test.ts` |
 | C9 | Card data goes into a receipt, an event, an error, or a return value. | Receipts hold the last 4 digits only. No number, expiry, or CVC goes anywhere else. | `tests/card.test.ts` |
 | C11 | The tab loads a new page after the check and before the fill. | foxpay checks the page again before the card number goes out, and refuses `page-changed`. The new page gets nothing. | `tests/card.test.ts` |
+| C16 | The tab loads a new page after foxpay's last check and before foxvault fills the number. | foxpay passes the checked `documentId` to `vault.fill`, so foxvault refuses `page-changed` and the new page gets nothing. | `tests/card.test.ts` |
 | C12 | Storing the virtual card in the vault fails half way. | foxpay removes every card handle it made. | `tests/card.test.ts` |
 | C13 | The submit script starts, and then its result is lost, for example because the page navigates. | The order may be placed, so the status is `unsettled` with `submit-unknown`, never `failed`. | `tests/card.test.ts` |
 | C14 | A step after the card number fill fails, so the number stays in the form. | foxpay clears the card fields in the same document before it reports the failure. | `tests/card.test.ts` |

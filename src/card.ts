@@ -185,11 +185,11 @@ export function cardFill(options: CardFillOptions): PayMethod {
   }
 
   async function fill(intent: Intent, hold: Hold, handles: { number: string; details: string }, state: { filled: boolean }): Promise<string> {
-    // The page can change after the check. Check it again before the number goes out (C11).
-    // foxvault fills the current top document, so a load in the short time after this check stays a limit.
+    // The page can change after the check. Check it again before the number goes out (C11),
+    // and pin the foxvault fill to the checked document, so a later load gets nothing (C16).
     await samePage(intent, hold);
     // oxlint-disable-next-line unicorn/no-array-fill-with-reference-type -- this is foxvault fill, not Array#fill
-    const filled = await vault.fill({ handle: handles.number, tabId: hold.tabId, selector: fields.number });
+    const filled = await vault.fill({ handle: handles.number, tabId: hold.tabId, selector: fields.number, documentId: hold.documentId });
     if (filled.status !== "filled") return filled.status === "refused" ? filled.reason : "fill-asks";
     state.filled = true;
     const page = await samePage(intent, hold);
