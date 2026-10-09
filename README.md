@@ -203,7 +203,7 @@ method reasons below.
 
 | Option | What it does |
 |---|---|
-| `vault`, `browser` | A foxvault vault (with a gate that has a `fill` grant for the merchant) and the WebExtension `browser` object. |
+| `vault`, `browser` | A foxvault vault (with a gate that has a `fill` grant for the merchant) and the WebExtension `browser` object. foxpay pins every fill, also the foxvault one, to the `documentId` that it checked. Needs a foxvault with the `documentId` fill option. |
 | `card` | `{ number, details }`: the handle of the card number and the handle of `"MM/YY CVC"`. |
 | `provider` | Or a `VirtualCardProvider` with `createCard({ intentId, merchant, amount })` that returns `{ id, number, exp, cvc }`, and an optional `cancelCard(id)` that foxpay calls when the payment fails before submit. |
 | `fields` | `{ number, exp, cvc }`: CSS selectors in the checkout page. |
@@ -300,10 +300,6 @@ that pays one time while a replay is refused.
 - There is no real virtual card provider yet. `VirtualCardProvider` is the
   interface for one, such as Stripe Issuing or Privacy.com. The tests use a
   fake provider.
-- foxvault fills the card number into the current top document of the tab.
-  foxpay checks the page and its `documentId` just before that fill, but a
-  page load in the short time between the check and the fill is not blocked.
-  A foxvault fill that takes a `documentId` would close this gap.
 - Card fill works in the top document only. A card form inside an iframe,
   for example a hosted payment field, cannot be filled.
 - A card payment ends as `submitted`. foxpay sees the page after submit, not

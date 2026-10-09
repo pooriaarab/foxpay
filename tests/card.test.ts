@@ -18,7 +18,8 @@ function fakeTabs() {
   const tabs = new Map<number, { url: string; documentId: string; dom: JSDOM }>();
   const submitted: Record<string, string>[] = [];
   const targets: unknown[] = [];
-  const hooks: { before?: (fn: string, dom: JSDOM) => void } = {};
+  const hooks: { before?: (fn: string, dom: JSDOM) => void; frame?: (call: number) => void } = {};
+  let frames = 0;
   let docs = 0;
   const open = (tabId: number, url: string, html: string) => {
     const dom = new JSDOM(html, { url });
@@ -33,6 +34,7 @@ function fakeTabs() {
   const browser: CardBrowser = {
     webNavigation: {
       getFrame: async ({ tabId, frameId }) => {
+        hooks.frame?.(++frames);
         const tab = tabs.get(tabId);
         return frameId === 0 && tab ? { url: tab.url, documentId: tab.documentId } : null;
       },
@@ -136,6 +138,20 @@ describe("card fill", () => {
   it("C11: a new page after the check gets no card number", async () => {
     const s = await setup({ beforePay: (t) => void t.open(1, "https://shop.example/checkout", checkout()) });
     expect(await approve(s, await ask(s))).toMatchObject({ status: "failed", receipt: { failure: "page-changed" } });
+    expect([field(s, "#card"), s.submitted.length]).toEqual(["", 0]);
+  });
+
+  it("C16: a page load just before the foxvault fill gets no card number", async () => {
+    const s = await setup();
+    const asked = await ask(s);
+    const token = await s.host.approve(asked.requestId);
+    let start = 0;
+    // Calls after complete starts: the check, the last check in pay, then foxvault fill.
+    s.hooks.frame = (n) => {
+      if (start === 0) start = n;
+      if (n === start + 2) s.open(1, "https://shop.example/checkout", checkout());
+    };
+    expect(await s.pay.complete(asked.id, token)).toMatchObject({ status: "failed", receipt: { failure: "page-changed" } });
     expect([field(s, "#card"), s.submitted.length]).toEqual(["", 0]);
   });
 
