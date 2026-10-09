@@ -1,5 +1,5 @@
 {
-  "name": "@pooriaarab/foxpay",
+  "name": "foxpay-agent",
   "version": "0.1.0",
   "description": "Agent payments with spend caps and approval for each payment.",
   "type": "module",
