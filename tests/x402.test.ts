@@ -118,13 +118,50 @@ describe("x402", () => {
     expect(await approve(s, await ask(s))).toMatchObject({ status: "unsettled", receipt: { failure: "not-confirmed" } });
   });
 
-  it("X10: a 402 after payment fails, and foxpay signs one time only", async () => {
+  it("X10: a refusal by the facilitator fails, and foxpay signs one time only", async () => {
+    const s = await setup();
+    const asked = await ask(s);
+    s.api.settle = "insufficient-funds";
+    expect(await approve(s, asked)).toMatchObject({ status: "failed", receipt: { failure: "insufficient_funds" } });
+    expect(signed(s)).toHaveLength(1);
+    expect(s.api.settled).toHaveLength(0);
+  });
+
+  it("X14: an error answer after the signed payment is unsettled, not failed", async () => {
+    for (const status of [500, 502, 402]) {
+      const s = await setup();
+      const asked = await ask(s);
+      s.api.statusAfterSettle = status;
+      expect(await approve(s, asked), String(status)).toMatchObject({ status: "unsettled", receipt: { failure: `http-${status}` } });
+      expect(s.api.settled).toHaveLength(1);
+    }
+  });
+
+  it("X15: foxpay does not follow redirects", async () => {
+    const s = await setup();
+    const seen: (string | undefined)[] = [];
+    const redirecting = (status: number) => async (input: string, init?: RequestInit) => {
+      seen.push(init?.redirect);
+      if (init?.headers) return new Response("", { status, headers: { location: "https://evil.example/" } });
+      return s.api.fetch(input, init);
+    };
+    const pay = createFoxpay({ gate: s.gate, store: s.store, methods: { x402: x402({ vault: s.vault, wallet: "vault:wallet", payTo: { "api.example": PAY_TO }, fetch: redirecting(302) }) } });
+    const asked = await pay.request(intent());
+    if (asked.status !== "ask") throw new Error("no ask");
+    expect(await pay.complete(asked.id, await s.host.approve(asked.requestId))).toMatchObject({ status: "unsettled", receipt: { failure: "http-302" } });
+    expect(seen.every((r) => r === "manual")).toBe(true);
+    const moved = async () => new Response("", { status: 301, headers: { location: "https://evil.example/" } });
+    const pay2 = createFoxpay({ gate: s.gate, store: s.store, methods: { x402: x402({ vault: s.vault, wallet: "vault:wallet", payTo: { "api.example": PAY_TO }, fetch: moved }) } });
+    expect(await pay2.request(intent({ idempotencyKey: "call-0301" }))).toMatchObject({ status: "refused", reason: "not-402" });
+  });
+
+  it("X16: a price change after approval is refused before the token is used", async () => {
     const s = await setup();
     const asked = await ask(s);
     s.api.price = 20_000;
-    expect(await approve(s, asked)).toMatchObject({ status: "failed", receipt: { failure: "invalid_exact_evm_payload_mismatch" } });
-    expect(signed(s)).toHaveLength(1);
-    expect(s.api.settled).toHaveLength(0);
+    expect(await approve(s, asked)).toMatchObject({ status: "refused", reason: "amount-changed" });
+    expect(signed(s)).toHaveLength(0);
+    expect((await s.host.grants())[0]!.spent).toBe(0);
   });
 
   it("X11: the wallet key is in no result, event, receipt, store, or error", async () => {

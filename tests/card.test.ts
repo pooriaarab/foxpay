@@ -57,7 +57,7 @@ function fakeTabs() {
   return { tabs, open, browser, submitted, targets, hooks };
 }
 
-async function setup(opts: { url?: string; html?: string; cardDomains?: string[]; provider?: VirtualCardProvider; passphrase?: string } = {}) {
+async function setup(opts: { url?: string; html?: string; cardDomains?: string[]; provider?: VirtualCardProvider; passphrase?: string; beforePay?: (t: ReturnType<typeof fakeTabs>) => void } = {}) {
   const store = memoryStore();
   const { gate, host } = createFoxgate({ tools: { ...payTools(), [FILL_TOOL]: "fill" }, store });
   await host.addGrant({ scope: "pay", domains: ["shop.example"], tools: [PAY_TOOL], spendCap: { value: 5000, currency: "USD" } });
@@ -80,7 +80,9 @@ async function setup(opts: { url?: string; html?: string; cardDomains?: string[]
     waitMs: 300,
   });
   const events: unknown[] = [];
-  const pay = createFoxpay({ gate, store, methods: { card }, onEvent: (e) => void events.push(e) });
+  // beforePay runs after the check and before the payment, as a page load in between would.
+  const method = opts.beforePay ? { ...card, pay: (ctx: Parameters<typeof card.pay>[0]) => (opts.beforePay!(t), card.pay(ctx)) } : card;
+  const pay = createFoxpay({ gate, store, methods: { card: method }, onEvent: (e) => void events.push(e) });
   return { ...t, gate, host, vault, pay, events };
 }
 type S = Awaited<ReturnType<typeof setup>>;
@@ -129,6 +131,19 @@ describe("card fill", () => {
     s.open(1, "https://shop.example/checkout", checkout());
     expect(await approve(s, asked)).toMatchObject({ status: "refused", reason: "page-changed" });
     expect([field(s, "#card"), s.submitted.length, await spent(s)]).toEqual(["", 0, 0]);
+  });
+
+  it("C11: a new page after the check gets no card number", async () => {
+    const s = await setup({ beforePay: (t) => void t.open(1, "https://shop.example/checkout", checkout()) });
+    expect(await approve(s, await ask(s))).toMatchObject({ status: "failed", receipt: { failure: "page-changed" } });
+    expect([field(s, "#card"), s.submitted.length]).toEqual(["", 0]);
+  });
+
+  it("C12: a virtual card that cannot be stored leaves no handle behind", async () => {
+    const s = await setup({ provider: { createCard: async () => ({ id: "vc_3", number: "4000056655665556", exp: "1/2", cvc: "" }) } });
+    expect(await approve(s, await ask(s))).toMatchObject({ status: "failed" });
+    expect((await s.vault.list()).map((x) => x.handle).toSorted()).toEqual(["vault:card", "vault:card.details"]);
+    expect(field(s, "#card")).toBe("");
   });
 
   it("C4: a total that changes after approval is refused before the fill", async () => {
