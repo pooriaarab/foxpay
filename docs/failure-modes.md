@@ -79,6 +79,7 @@ facilitator.
 | X15 | The URL redirects to another host. | foxpay does not follow redirects, so the signed payload goes to the approved URL only. A redirect is `not-402` at quote time and `unsettled` after payment. | `tests/x402.test.ts` |
 | X17 | The answer body fails to read after a `2xx` with a valid settlement. | The settlement header is read first. The receipt status is `paid` with no body. A read error is never `failed`. | `tests/x402.test.ts` |
 | X18 | The payee settles the payment and then answers `402` with `success: false`. | The receipt status is `unsettled`, never `failed`. Once the signed payload is sent, x402 never returns `failed`. | `tests/x402.test.ts` |
+| X19 | The human approves an x402 payment without seeing which URL it pays for. | The approval names the URL and the 402 resource URL, and the token binds them. | `tests/x402.test.ts` |
 | X16 | The price in the `402` changes after approval. | The check before the token fetches the `402` again and refuses `amount-changed`. foxgate counts no spend. | `tests/x402.test.ts` |
 | X11 | The wallet key leaks into a log, an event, an error, the store, or the model context. | The key stays in foxvault. foxpay uses it inside `vault.use` only. No output holds it. | `tests/x402.test.ts` |
 | X12 | The vault is locked. | Refuse `locked` before the token is used. | `tests/x402.test.ts` |
