@@ -11,3 +11,4 @@ button { margin: 6px 6px 0 0; }
 .approve { background: #166534; color: #fff; border: 0; border-radius: 4px; padding: 4px 10px; }
 details { margin-top: 12px; }
 output { display: block; margin-top: 6px; font-weight: 600; }
+pre:empty { display: none; }
