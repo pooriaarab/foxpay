@@ -159,6 +159,17 @@ export function x402(options: X402Options): PayMethod {
     // One send per payload. foxpay never sends it again (X8).
     const res = await http(url, { headers: { "payment-signature": encodeHeader(payload) }, redirect: "manual" }).catch(() => undefined);
     if (!res) return { status: "unsettled", reason: "no-response", proof };
+    // From here the payee holds a valid authorization until validBefore, so
+    // nothing below can prove that no money moved: the worst answer is
+    // "unsettled", never "failed" (X10, X14, X17, X18).
+    try {
+      return await outcome(res, proof);
+    } catch {
+      return { status: "unsettled", reason: "read-error", proof };
+    }
+  }
+
+  async function outcome(res: Response, proof: { network: string; payer: string; nonce: string }): Promise<PayOutcome> {
     let settlement: Record<string, unknown> = {};
     try {
       const decoded = decodeHeader(res.headers.get("payment-response") ?? "");
@@ -167,17 +178,19 @@ export function x402(options: X402Options): PayMethod {
       // No settlement header: handled below.
     }
     if (res.status < 200 || res.status > 299) {
-      // Only an explicit refusal is a failure. Any other error can still settle before validBefore (X14).
-      const refused = res.status === 402 && settlement.success === false && typeof settlement.errorReason === "string" && /^[a-z0-9_]{1,64}$/.test(settlement.errorReason);
-      return refused ? { status: "failed", reason: settlement.errorReason as string, proof } : { status: "unsettled", reason: `http-${res.status}`, proof };
+      // A refusal from the payee is its claim, not proof of no payment.
+      const why = typeof settlement.errorReason === "string" && /^[a-z0-9_]{1,64}$/.test(settlement.errorReason) ? settlement.errorReason : `http-${res.status}`;
+      return { status: "unsettled", reason: why, proof };
     }
-    const body = await res.text();
+    // The settlement header first: a body that fails to read does not hide a payment (X17).
+    const body = await res.text().catch(() => undefined);
+    const extra = body === undefined ? {} : { body };
     const transaction = settlement.transaction;
     const settled = settlement.success === true && typeof transaction === "string" && /^0x[0-9a-fA-F]{64}$/.test(transaction) && settlement.network === BASE_SEPOLIA.network;
-    if (!settled) return { status: "unsettled", reason: "no-settlement", proof, body };
+    if (!settled) return { status: "unsettled", reason: "no-settlement", proof, ...extra };
     const full = { ...proof, transaction: transaction as string };
-    if (options.confirm && !(await options.confirm(full).catch(() => false))) return { status: "unsettled", reason: "not-confirmed", proof: full, body };
-    return { status: "paid", proof: full, body };
+    if (options.confirm && !(await options.confirm(full).catch(() => false))) return { status: "unsettled", reason: "not-confirmed", proof: full, ...extra };
+    return { status: "paid", proof: full, ...extra };
   }
 
   return { quote, check, pay };
