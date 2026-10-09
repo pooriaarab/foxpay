@@ -31,7 +31,9 @@ export function fakeX402Api(options: FakeX402Options) {
     /** Fields that replace the honest requirements, for example `{ network: "eip155:8453" }`. */
     override: {} as Partial<PaymentRequirements> & { resourceUrl?: string },
     /** "ok" settles. The others answer success with no real settlement. */
-    settle: "ok" as "ok" | "no-transaction" | "wrong-network",
+    settle: "ok" as "ok" | "no-transaction" | "wrong-network" | "insufficient-funds",
+    /** When set, the API settles the payment and then answers with this status, as a failing proxy would. */
+    statusAfterSettle: null as number | null,
     /** When false, the URL answers 200 with no payment. */
     paid: true,
     /** Every request: the path and the payment header, if any. */
@@ -69,6 +71,7 @@ export function fakeX402Api(options: FakeX402Options) {
       const t = Math.floor(now() / 1000);
       if (Number(a.validBefore) <= t || Number(a.validAfter) > t) return refuse("invalid_exact_evm_payload_authorization_valid_before");
       if (used.has(a.nonce.toLowerCase())) return refuse("nonce_used");
+      if (api.settle === "insufficient-funds") return refuse("insufficient_funds");
       let payer: string;
       try {
         payer = recoverAuthorizer({ name: BASE_SEPOLIA.name, version: BASE_SEPOLIA.version, chainId: BASE_SEPOLIA.chainId, verifyingContract: want.asset }, a, payload.payload.signature);
@@ -80,6 +83,7 @@ export function fakeX402Api(options: FakeX402Options) {
       const transaction = `0x${Array.from(keccak_256(new TextEncoder().encode(a.nonce)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
       api.settled.push({ payer, value: a.value, nonce: a.nonce, transaction });
       const settlement = { success: true, payer, network: api.settle === "wrong-network" ? "eip155:8453" : BASE_SEPOLIA.network, transaction: api.settle === "no-transaction" ? "" : transaction };
+      if (api.statusAfterSettle !== null) return reply(api.statusAfterSettle, "error");
       return reply(200, options.body ?? "ok", { "payment-response": encodeHeader(settlement) });
     },
     fetch: (input: string | URL | Request, init?: RequestInit) => api.handle(new Request(input, init)),

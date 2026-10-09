@@ -121,6 +121,19 @@ describe("complete", () => {
     expect(JSON.stringify([done, t.events, await t.store.get("foxpay")])).not.toContain("4242");
   });
 
+  it("I18: a stored intent that a no-approval grant now allows still runs the check", async () => {
+    const t = await setup();
+    await ask(t);
+    for (const g of await t.host.grants()) await t.host.revokeGrant(g.id);
+    await t.host.addGrant({ scope: "pay", domains: ["shop.example"], tools: ["foxpay.pay"], spendCap: { value: 5000, currency: "USD" }, approval: "never" });
+    t.fake.state.checkReason = "locked";
+    expect(await t.pay.request(intent())).toMatchObject({ status: "refused", reason: "locked" });
+    expect(t.fake.calls.pay).toBe(0);
+    t.fake.state.checkReason = undefined;
+    expect((await t.pay.request(intent())).status).toBe("paid");
+    expect(t.events.map((e) => e.kind)).toContain("pay.approved");
+  });
+
   it("an unknown intent id is refused", async () => {
     const t = await setup();
     expect(await t.pay.complete("fpy-nothing-here", "token")).toMatchObject({ status: "refused", reason: "not-found" });
