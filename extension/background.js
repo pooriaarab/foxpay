@@ -1,9 +1,10 @@
 // The demo background (an MV3 event page). It runs foxgate, foxvault, and
 // foxpay with storage.local. The popup gets summaries and receipts, never a
-// card number. A simulated agent asks to pay; the human approves in the popup.
+// card number or a wallet key. A simulated agent asks to pay; the human
+// approves in the popup. x402 pays on Base Sepolia only, here a local fake API.
 import { createFoxgate, storageAreaStore } from "foxgate";
 import { FILL_TOOL, createVault, indexedDbKeyStore } from "foxvault";
-import { PAY_TOOL, cardFill, createFoxpay, payTools } from "../src/index.ts";
+import { GATE_CURRENCY, PAY_TOOL, cardFill, createFoxpay, payTools, x402 } from "../src/index.ts";
 
 const store = storageAreaStore(browser.storage.local);
 const { gate, host } = createFoxgate({ tools: { ...payTools(), [FILL_TOOL]: "fill" }, store, publicSuffix: browser.publicSuffix });
@@ -19,7 +20,11 @@ const card = cardFill({
   currency: "USD",
   allowHttp: true,
 });
-const pay = createFoxpay({ gate, store, methods: { card } });
+// The recipient for each API host, from setup. It lives in storage.local, because the event page unloads.
+const payTo = {};
+const api = x402({ vault, wallet: "vault:wallet", payTo });
+const pay = createFoxpay({ gate, store, methods: { card, x402: api } });
+const loadPayTo = async () => Object.assign(payTo, (await browser.storage.local.get("demoPayTo")).demoPayTo);
 
 // The newest tab on the merchant host: the checkout the agent works in.
 async function tabOf(merchant) {
@@ -39,16 +44,31 @@ const handlers = {
     for (const handle of ["vault:card", "vault:card.details"]) await vault.remove(handle);
     await vault.set("vault:card", number.replace(/\s/g, ""), { domains: [shopHost], allowHttp: true });
     await vault.set("vault:card.details", `${exp} ${cvc}`, { domains: [shopHost], allowHttp: true });
-    for (const grant of await host.grants()) await host.revokeGrant(grant.id);
+    for (const grant of await host.grants()) if (grant.spendCap?.currency !== GATE_CURRENCY.USDC) await host.revokeGrant(grant.id);
     await host.addGrant({ scope: "pay", domains: [shopHost], tools: [PAY_TOOL], spendCap: { value: Math.round(Number(cap) * 100), currency: "USD" } });
     await host.addGrant({ scope: "fill", domains: [shopHost], tools: [FILL_TOOL] });
     return "ready";
+  },
+  // A testnet wallet key, the recipient of the paid API, and a cap in test USDC (6 decimals).
+  async setupApi({ walletKey, apiHost, recipient, cap }) {
+    if ((await vault.status()) === "new") await vault.initialize();
+    await vault.remove("vault:wallet");
+    await vault.set("vault:wallet", walletKey.trim(), { domains: [apiHost], allowHttp: true });
+    await browser.storage.local.set({ demoPayTo: { [apiHost]: recipient.trim() } });
+    for (const grant of await host.grants()) if (grant.spendCap?.currency === GATE_CURRENCY.USDC) await host.revokeGrant(grant.id);
+    await host.addGrant({ scope: "pay", domains: [apiHost], tools: [PAY_TOOL], spendCap: { value: Math.round(Number(cap) * 1e6), currency: GATE_CURRENCY.USDC } });
+    return "ready";
+  },
+  async call({ url, amount, reason, key }) {
+    await loadPayTo();
+    return pay.request({ merchant: new URL(url).hostname, amount: Number(amount), currency: "USDC", reason, method: "x402", idempotencyKey: key, target: { url } });
   },
   // The simulated agent: it names the merchant, the amount, and the reason.
   async request({ merchant, amount, reason, key }) {
     return pay.request({ merchant, amount: Number(amount), currency: "USD", reason, method: "card", idempotencyKey: key, target: { tabId: await tabOf(merchant) } });
   },
   async approve({ id, requestId }) {
+    await loadPayTo();
     return pay.complete(id, await host.approve(requestId));
   },
   async reject({ requestId }) {
