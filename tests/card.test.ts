@@ -116,8 +116,10 @@ describe("card fill", () => {
       const s = await setup({ url });
       expect(await s.pay.request(intent()), url).toMatchObject({ status: "refused", reason: "merchant-mismatch" });
     }
-    const s = await setup({ url: "https://shоp.example/checkout" });
-    expect(await s.pay.request(intent({ merchant: "shоp.example" }))).toMatchObject({ status: "refused", reason: "no-grant" });
+    const puny = new URL("https://shоp.example/").hostname;
+    expect(puny.startsWith("xn--")).toBe(true);
+    const s = await setup({ url: "https://shоp.example/checkout", cardDomains: [puny] });
+    expect(await s.pay.request(intent({ merchant: "shоp.example" }))).toMatchObject({ status: "refused", reason: "no-grant", message: expect.stringContaining(puny) });
     expect(field(s, "#card")).toBe("");
   });
 
