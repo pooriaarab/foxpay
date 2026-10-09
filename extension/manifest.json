@@ -8,22 +8,17 @@
       "id": "foxpay@pooriaarab",
       "strict_min_version": "153.0",
       "data_collection_permissions": {
-        "required": ["none"]
+        "required": ["financialAndPaymentInfo"]
       }
     }
   },
-  "permissions": ["storage"],
+  "permissions": ["storage", "publicSuffix", "scripting", "webNavigation"],
+  "host_permissions": ["http://localhost/*", "http://*.localhost/*"],
   "background": {
     "scripts": ["background.js"]
   },
   "action": {
     "default_title": "foxpay demo",
     "default_popup": "popup.html"
-  },
-  "content_scripts": [
-    {
-      "matches": ["http://127.0.0.1/*"],
-      "js": ["content.js"]
-    }
-  ]
+  }
 }
