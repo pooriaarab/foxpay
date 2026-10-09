@@ -17,5 +17,8 @@
   },
   "privacy_policy": {
     "en-US": "foxpay has no server. It sends nothing to its authors and has no analytics. It moves no real money.\n\nThe card and the wallet key that you type in Setup stay in this browser, encrypted by foxvault. The payments that wait and the receipts stay in the add-on's local storage.\n\nfoxpay sends payment data only after you click Approve on one payment:\n\n1. Card payment: foxpay types the card number, the expiry and the CVC into the checkout form of the shop host that you set up, and submits that form. The add-on can reach only localhost addresses, so that shop runs on your own computer.\n2. x402 payment: foxpay sends a signed payment for the Base Sepolia network to the API address that you typed.\n\nfoxpay sends nothing else."
+  },
+  "local_hosts": {
+    "http://*.localhost/*": "The add-on is a payment sandbox. It fills the checkout of a shop on this computer (for example shop.localhost from foxbench) and pays a local x402 API (api.localhost). It asks for no other site, so it cannot pay a real shop."
   }
 }

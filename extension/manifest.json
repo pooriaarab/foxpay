@@ -14,7 +14,7 @@
     }
   },
   "permissions": ["storage", "publicSuffix", "scripting", "webNavigation"],
-  "host_permissions": ["http://localhost/*", "http://*.localhost/*"],
+  "host_permissions": ["http://*.localhost/*"],
   "background": {
     "scripts": ["background.js"]
   },
