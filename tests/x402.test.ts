@@ -119,13 +119,30 @@ describe("x402", () => {
     expect(await approve(s, await ask(s))).toMatchObject({ status: "unsettled", receipt: { failure: "not-confirmed" } });
   });
 
-  it("X10: a refusal by the facilitator fails, and foxpay signs one time only", async () => {
+  it("X10: a refusal by the payee after the signed payload is unsettled, not failed", async () => {
     const s = await setup();
     const asked = await ask(s);
     s.api.settle = "insufficient-funds";
-    expect(await approve(s, asked)).toMatchObject({ status: "failed", receipt: { failure: "insufficient_funds" } });
+    expect(await approve(s, asked)).toMatchObject({ status: "unsettled", receipt: { status: "unsettled", failure: "insufficient_funds" } });
     expect(signed(s)).toHaveLength(1);
     expect(s.api.settled).toHaveLength(0);
+  });
+
+  it("X17: a body that fails to read after a valid settlement is paid with no body", async () => {
+    const s = await setup();
+    const asked = await ask(s);
+    s.api.breakBody = true;
+    const done = await approve(s, asked);
+    expect(done).toMatchObject({ status: "paid", receipt: { status: "paid", proof: { transaction: s.api.settled[0]!.transaction } } });
+    expect(done).not.toHaveProperty("body");
+  });
+
+  it("X18: a payee that settles and then answers 402 is unsettled, never failed", async () => {
+    const s = await setup();
+    const asked = await ask(s);
+    s.api.refuseAfterSettle = true;
+    expect(await approve(s, asked)).toMatchObject({ status: "unsettled", receipt: { failure: "insufficient_funds" } });
+    expect(s.api.settled).toHaveLength(1);
   });
 
   it("X14: an error answer after the signed payment is unsettled, not failed", async () => {
