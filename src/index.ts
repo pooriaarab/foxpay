@@ -3,3 +3,5 @@ export { GATE_CURRENCY, PAY_TOOL, PayRefusal, createFoxpay, payTools } from "./i
 export type { CompleteResult, Foxpay, FoxpayOptions, Intent, PayContext, PayEvent, PayMethod, PayOutcome, PayStatus, Quote, Receipt, RequestResult } from "./intent.js";
 export { cardFill } from "./card.js";
 export type { CardBrowser, CardFillOptions, VirtualCardProvider } from "./card.js";
+export { addressOf, authorizationDigest, checksumAddress, recoverAuthorizer, signAuthorization } from "./eip712.js";
+export type { Authorization, TokenDomain } from "./eip712.js";
