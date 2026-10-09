@@ -33,6 +33,7 @@ async function ask(s: S, over: Record<string, unknown> = {}) {
 }
 const approve = async (s: S, asked: { id: string; requestId: string }) => s.pay.complete(asked.id, await s.host.approve(asked.requestId));
 const garbage = async () => new Response("{}", { status: 402, headers: { "payment-required": "not base64 json!" } });
+const moved = async () => new Response("", { status: 301, headers: { location: "https://evil.example/" } });
 const signed = (s: S) => s.api.log.filter((l) => l.payment !== null);
 
 describe("x402", () => {
@@ -150,7 +151,6 @@ describe("x402", () => {
     if (asked.status !== "ask") throw new Error("no ask");
     expect(await pay.complete(asked.id, await s.host.approve(asked.requestId))).toMatchObject({ status: "unsettled", receipt: { failure: "http-302" } });
     expect(seen.every((r) => r === "manual")).toBe(true);
-    const moved = async () => new Response("", { status: 301, headers: { location: "https://evil.example/" } });
     const pay2 = createFoxpay({ gate: s.gate, store: s.store, methods: { x402: x402({ vault: s.vault, wallet: "vault:wallet", payTo: { "api.example": PAY_TO }, fetch: moved }) } });
     expect(await pay2.request(intent({ idempotencyKey: "call-0301" }))).toMatchObject({ status: "refused", reason: "not-402" });
   });

@@ -226,6 +226,7 @@ export function createFoxpay(options: FoxpayOptions) {
     data.intents[rec.id] = rec;
     await save(data);
     running.add(rec.id);
+    await emit("pay.approved", { ...summary(rec), grantId: decision.grantId }).catch(() => undefined);
     return "pay";
   }
 
@@ -271,6 +272,10 @@ export function createFoxpay(options: FoxpayOptions) {
         if (old) {
           if (canonicalJson(old.intent) !== canonicalJson(intent)) return refused("key-reused", "This idempotency key belongs to a different intent.", id);
           if (old.status !== "awaiting") return done(old);
+          // The grant can now allow it with no approval, so the method check runs first (I18).
+          const check = methods[old.intent.method]!.check;
+          const stop = check && (await guard(() => check({ id, intent: old.intent, quote: old.quote })));
+          if (stop) return refused(stop, `The payment cannot run now: ${stop}.`, id);
           const again = await decide(data, old);
           return again === "pay" ? old : again;
         }
