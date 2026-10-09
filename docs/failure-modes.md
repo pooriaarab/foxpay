@@ -97,3 +97,20 @@ facilitator.
 | E4 | A replayed payment header pays again. | The fake API refuses it. A second `complete` gives the same receipt. | `e2e/run.mjs` |
 | E5 | The popup shows a wrong budget. | The popup shows the cap, the amount left, the waiting approvals, and the receipts. | `e2e/run.mjs` |
 | E6 | The card number or the wallet key leaks into the popup or `storage.local`. | Neither holds any of them. | `e2e/run.mjs` |
+
+## AMO release build and listed submission (`scripts/amo-listing.mjs`)
+
+`pnpm check:amo` reads `dist-ext/`, which is what `release.yml` signs. Each
+row is a way that the listed build or the submission can go wrong.
+
+| ID | Failure | Wanted result |
+|---|---|---|
+| AR1 | `dist-ext/` is missing, so the check reads nothing | The check stops and says to run `pnpm build:ext` |
+| AR2 | A content script in the release manifest matches `127.0.0.1`, `localhost` or `*.localhost` (a test bridge) | The check stops and names the pattern |
+| AR3 | A host permission for a local host exists only for tests | The check stops, unless `local_hosts` in the listing gives a reason for that exact pattern |
+| AR4 | A file named for tests (`e2e`, `fixture`, `test`, `spec`) is in `dist-ext/` | The check stops and names the file |
+| AR5 | `dist-ext/` came from `build-ext.mjs --e2e` | AR2 or AR4 stops it |
+| AR6 | The `local_hosts` reasons go to AMO as an unknown field | `metadata` leaves them out, as it does the privacy policy |
+| AR7 | A re-run submits a version that AMO already has as listed | `version-status` says `listed`, and the step skips web-ext sign and finishes the release |
+| AR8 | AMO has the version as unlisted | `version-status` stops and says to bump the version |
+| AR9 | The AMO version lookup fails (401, 500, network) | `version-status` stops; it never guesses `absent` |
