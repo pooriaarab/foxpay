@@ -66,7 +66,11 @@ export interface PayOutcome {
   body?: string;
 }
 
-/** A way to pay. Throw `PayRefusal` to refuse with a reason. */
+/**
+ * A way to pay. Throw `PayRefusal` to refuse with a reason. From `pay`, throw
+ * it only before any money can move: foxpay records it as `failed`. Any other
+ * error from `pay` is recorded as `unsettled`.
+ */
 export interface PayMethod {
   quote(intent: Intent): Promise<Quote>;
   /** Runs before foxgate uses the token. Return a reason to stop, for example `amount-changed` or `locked`. */
@@ -74,7 +78,7 @@ export interface PayMethod {
   pay(context: PayContext): Promise<PayOutcome>;
 }
 
-/** Throw it from a method to refuse with a reason that callers can switch on. */
+/** Throw it from a method to refuse with a reason that callers can switch on. From `pay`, only before any money can move. */
 export class PayRefusal extends Error {
   constructor(readonly reason: string, message = reason) {
     super(message);
@@ -238,7 +242,9 @@ export function createFoxpay(options: FoxpayOptions) {
     try {
       outcome = await method.pay({ id: rec.id, intent: rec.intent, quote: rec.quote });
     } catch (error) {
-      outcome = { status: "failed", reason: error instanceof PayRefusal ? error.reason : "method-error" };
+      // A PayRefusal is a promise that no money moved. Any other error can come
+      // after money moved, so the outcome is not known (I19).
+      outcome = error instanceof PayRefusal ? { status: "failed", reason: error.reason } : { status: "unsettled", reason: "method-error" };
     }
     const receipt: Receipt = {
       ...summary(rec),

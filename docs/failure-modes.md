@@ -39,6 +39,7 @@ facilitator.
 | I15 | The stored foxpay record is not readable. | Refuse `storage-error`. Nothing pays. | `tests/intent.test.ts` |
 | I16 | The amount changes between approval and payment. | The method check before payment sees it and refuses `amount-changed`. foxgate counts no spend. | `tests/intent.test.ts`, C4, X16 |
 | I17 | The vault is locked at payment time. | Refuse `locked` before foxgate uses the token. The human can unlock and complete again. | `tests/intent.test.ts`, X12 |
+| I19 | A payment method throws while it pays, so foxpay does not know if money moved. | Any error except `PayRefusal` gives `unsettled` with `method-error`. A method throws `PayRefusal` only before any money can move, and that gives `failed`. | `tests/complete.test.ts` |
 | I18 | A stored intent is retried after its grant changed to no approval, so it pays with no `complete`. | The method check still runs first, and the payment emits `pay.approved`. | `tests/complete.test.ts` |
 
 ## Card fill
