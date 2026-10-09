@@ -50,6 +50,14 @@ describe("x402", () => {
     expect((await s.host.grants())[0]!.spent).toBe(10_000);
   });
 
+  it("X19: the approval names and binds the URL and the resource", async () => {
+    const s = await setup();
+    await ask(s);
+    const [request] = await s.host.pending();
+    expect(request!.text).toContain(`"details":{"resource":"${URL1}","url":"${URL1}"}`);
+    expect(request!.action.args).toMatchObject({ details: { url: URL1, resource: URL1 } });
+  });
+
   it("X8: a replayed payload is refused, and a retry pays no more", async () => {
     const s = await setup();
     const asked = await ask(s);
