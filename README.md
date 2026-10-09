@@ -289,6 +289,9 @@ pnpm e2e        # builds, loads the demo in Firefox, and runs the E2E checks
 pnpm build:ext  # builds dist-ext/; load it from about:debugging
 ```
 
+Install from AMO: [addons.mozilla.org/firefox/addon/foxpay](https://addons.mozilla.org/firefox/addon/foxpay/)
+(pending AMO review; the link works after approval).
+
 `pnpm e2e` writes `artifacts/e2e-<date>.json`. It checks a $26.00 order under
 a $100 cap with one approval (the foxbench server sees the order and card
 ending 4242), a $500 order that is refused before any fill, and an x402 call

@@ -1,0 +1,26 @@
+{
+  "default_locale": "en-US",
+  "slug": "foxpay",
+  "name": { "en-US": "foxpay — agent payments with approvals" },
+  "summary": {
+    "en-US": "See how an AI agent can ask to pay, with a spend cap and your approval for each payment. It works with sandbox cards on a shop on your own computer and with the Base Sepolia network. No real money moves."
+  },
+  "description": {
+    "en-US": "foxpay lets an AI agent ask to pay, and lets you approve each payment. This add-on shows the foxpay library working with a simulated agent, so developers can see the flow before they build an agent on it.\n\n**Who it is for:** developers of AI agents who want spend caps and an approval for each payment.\n\n**What it does**\n\n- Setup stores a sandbox card and a spend cap for one shop, or a Base Sepolia wallet key and a cap for one paid API (x402). The card and the key stay encrypted, and the popup never shows them again.\n- The simulated agent asks to pay a merchant an amount, with a reason.\n- foxpay reads the real amount from the checkout page or from the API's 402 answer. It refuses an amount over the cap.\n- You see the merchant, the amount and the reason, and you click Approve or Deny. One approval pays one time.\n- Each payment gets a receipt in the popup.\n\n**Limits:** the add-on can reach only shops and APIs on your own computer (localhost addresses). It is for sandbox cards and the Base Sepolia network. No real money moves.\n\n**Payment:** the add-on is free. It needs no payment, no account and no paid service.\n\n**What leaves the browser, and when**\n\n- When you approve a card payment, foxpay types the card number, the expiry and the CVC into the checkout form of the shop that you set up, and submits the form. That shop must be on a localhost address.\n- When you approve an x402 payment, foxpay sends a signed Base Sepolia payment to the API address that you typed.\n- foxpay has no server and sends nothing to its authors.\n\n**Permissions**\n\n- Access to localhost addresses, scripting and web navigation: read the total of the checkout page and fill the card form in that exact page.\n- Public suffix list: match the shop host in a spend cap.\n- Storage: settings, the encrypted card and wallet key, the payments that wait and the receipts.\n\nThe source code is MIT licensed."
+  },
+  "categories": { "firefox": ["web-development"] },
+  "homepage": { "en-US": "https://github.com/pooriaarab/foxpay" },
+  "support_url": { "en-US": "https://github.com/pooriaarab/foxpay/issues" },
+  "version": {
+    "license": "MIT",
+    "approval_notes": "The uploaded source.zip is the git tree of this release. To build: install Node 24 and pnpm 11 (corepack enable), run `pnpm install --frozen-lockfile`, then `pnpm build:ext`. The output is dist-ext/. esbuild bundles extension/*.js with src/ and the foxgate and foxvault npm packages; the other files are copied unmodified. To try it: run `pnpm e2e` in the source tree. It starts a local shop on shop.localhost and a local x402 API on api.localhost, loads the add-on in Firefox, stores the sandbox card 4242 4242 4242 4242, pays a $26.00 order under a $100 cap with one approval, refuses a $500 order, and pays one x402 call. No real money moves, and no account is needed."
+  },
+  "privacy_policy": {
+    "en-US": "foxpay has no server. It sends nothing to its authors and has no analytics. It moves no real money.\n\nThe card and the wallet key that you type in Setup stay in this browser, encrypted by foxvault. The payments that wait and the receipts stay in the add-on's local storage.\n\nfoxpay sends payment data only after you click Approve on one payment:\n\n1. Card payment: foxpay types the card number, the expiry and the CVC into the checkout form of the shop host that you set up, and submits that form. The add-on can reach only localhost addresses, so that shop runs on your own computer.\n2. x402 payment: foxpay sends a signed payment for the Base Sepolia network to the API address that you typed.\n\nfoxpay sends nothing else."
+  },
+  "local_hosts": {
+    "http://*.localhost/*": {
+      "host_permission": "The add-on is a payment sandbox. It fills the checkout of a shop on this computer (for example shop.localhost from foxbench) and pays a local x402 API (api.localhost). It asks for no other site, so it cannot pay a real shop."
+    }
+  }
+}
