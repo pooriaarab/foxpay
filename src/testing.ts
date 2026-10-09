@@ -34,6 +34,10 @@ export function fakeX402Api(options: FakeX402Options) {
     settle: "ok" as "ok" | "no-transaction" | "wrong-network" | "insufficient-funds",
     /** When set, the API settles the payment and then answers with this status, as a failing proxy would. */
     statusAfterSettle: null as number | null,
+    /** Settle, then answer 402 with success: false, as a payee that lies would. */
+    refuseAfterSettle: false,
+    /** Settle, then send a body stream that fails while it is read. */
+    breakBody: false,
     /** When false, the URL answers 200 with no payment. */
     paid: true,
     /** Every request: the path and the payment header, if any. */
@@ -84,6 +88,12 @@ export function fakeX402Api(options: FakeX402Options) {
       api.settled.push({ payer, value: a.value, nonce: a.nonce, transaction });
       const settlement = { success: true, payer, network: api.settle === "wrong-network" ? "eip155:8453" : BASE_SEPOLIA.network, transaction: api.settle === "no-transaction" ? "" : transaction };
       if (api.statusAfterSettle !== null) return reply(api.statusAfterSettle, "error");
+      if (api.refuseAfterSettle) return refuse("insufficient_funds");
+      if (api.breakBody) {
+        api.log.push({ path: url.pathname, payment, status: 200 });
+        const broken = new ReadableStream({ start: (c) => c.error(new Error("connection reset")) });
+        return new Response(broken, { status: 200, headers: { "payment-response": encodeHeader(settlement) } });
+      }
       return reply(200, options.body ?? "ok", { "payment-response": encodeHeader(settlement) });
     },
     fetch: (input: string | URL | Request, init?: RequestInit) => api.handle(new Request(input, init)),
