@@ -18,6 +18,8 @@ export interface CardBrowser {
 /** A card issuer that makes a single-use card for one merchant and one limit, such as Stripe Issuing. */
 export interface VirtualCardProvider {
   createCard(request: { intentId: string; merchant: string; amount: { value: number; currency: string } }): Promise<{ id: string; number: string; exp: string; cvc: string }>;
+  /** Close a card that foxpay made but did not use, for example after a failed fill (C15). */
+  cancelCard?(id: string): Promise<void>;
 }
 
 export interface CardFillOptions {
@@ -73,6 +75,18 @@ export function submitCheckout(submitSelector: string, totalSelector: string, to
   if (!(button instanceof HTMLElement)) return "not-found";
   button.click();
   return "submitted";
+}
+
+export function clearFields(selectors: string[], host: string): string {
+  if (location.hostname !== host) return "host-changed";
+  for (const selector of selectors) {
+    const field = document.querySelector(selector);
+    if (!(field instanceof HTMLInputElement)) continue;
+    field.value = "";
+    field.dispatchEvent(new Event("input", { bubbles: true }));
+    field.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  return "cleared";
 }
 
 /** Whole minor units from a total such as `Total $26.00`, or undefined when the text has not exactly one amount. */
@@ -170,13 +184,14 @@ export function cardFill(options: CardFillOptions): PayMethod {
     return vault.unlock().then(() => undefined, () => "locked");
   }
 
-  async function fill(intent: Intent, hold: Hold, handles: { number: string; details: string }): Promise<string> {
+  async function fill(intent: Intent, hold: Hold, handles: { number: string; details: string }, state: { filled: boolean }): Promise<string> {
     // The page can change after the check. Check it again before the number goes out (C11).
     // foxvault fills the current top document, so a load in the short time after this check stays a limit.
     await samePage(intent, hold);
     // oxlint-disable-next-line unicorn/no-array-fill-with-reference-type -- this is foxvault fill, not Array#fill
     const filled = await vault.fill({ handle: handles.number, tabId: hold.tabId, selector: fields.number });
     if (filled.status !== "filled") return filled.status === "refused" ? filled.reason : "fill-asks";
+    state.filled = true;
     const page = await samePage(intent, hold);
     const details = await vault.use(handles.details, async (value, info) => {
       if (!allows(info.domains, page.host)) return "domain";
@@ -184,7 +199,9 @@ export function cardFill(options: CardFillOptions): PayMethod {
       return run(hold.tabId, hold.documentId, fillDetails, [fields.exp, fields.cvc, exp, cvc, page.host]);
     });
     if (details !== "filled") return String(details);
-    return String(await run(hold.tabId, hold.documentId, submitCheckout, [options.submit, options.total, hold.totalText, page.host]));
+    // Once the submit script starts, a lost result can still mean a placed order (C13).
+    const submitted = await run(hold.tabId, hold.documentId, submitCheckout, [options.submit, options.total, hold.totalText, page.host]).catch(() => "submit-unknown");
+    return String(submitted);
   }
 
   // The page after submit: wait until the tab has a new document.
@@ -216,23 +233,32 @@ export function cardFill(options: CardFillOptions): PayMethod {
     } else {
       proof = { last4: await vault.use(card!.number, (value) => value.slice(-4)), card: card!.number };
     }
+    const state = { filled: false };
+    let failed: PayOutcome;
     try {
       if (vcard) {
         // Inside the try, so a half-stored card is removed too (C12).
         await vault.set(handles!.number, vcard.number, { domains: [q.payee], allowHttp: options.allowHttp ?? false });
         await vault.set(handles!.details, `${vcard.exp} ${vcard.cvc}`, { domains: [q.payee], allowHttp: options.allowHttp ?? false });
       }
-      const result = await fill(intent, hold, handles!);
-      if (result !== "submitted") return { status: "failed", reason: result, proof };
-      const page = await after(hold);
-      return { status: "submitted", proof: { ...proof, ...(page && { page }) } };
+      const result = await fill(intent, hold, handles!, state);
+      if (result === "submitted") {
+        const page = await after(hold);
+        return { status: "submitted", proof: { ...proof, ...(page && { page }) } };
+      }
+      if (result === "submit-unknown") return { status: "unsettled", reason: result, proof };
+      failed = { status: "failed", reason: result, proof };
     } catch (error) {
       const reason = error instanceof PayRefusal ? error.reason : (error as { code?: string }).code === "bad-value" ? "provider-card" : "fill-error";
-      return { status: "failed", reason, proof };
+      failed = { status: "failed", reason, proof };
     } finally {
       // A virtual card is for this payment only (C10).
       if (provider) for (const handle of [handles!.number, handles!.details]) await vault.remove(handle).catch(() => false);
     }
+    // Nothing was submitted: take the card out of the form, and close a virtual card (C14, C15).
+    if (state.filled) await run(hold.tabId, hold.documentId, clearFields, [[fields.number, fields.exp, fields.cvc], q.payee]).catch(() => undefined);
+    if (vcard) await provider!.cancelCard?.(vcard.id).catch(() => undefined);
+    return failed;
   }
 
   return { quote, check, pay };
