@@ -7,3 +7,4 @@ minimumReleaseAgeExclude:
   - foxgate@0.1.0
   - foxtrail@0.1.0
   - foxvault@0.1.0
+  - foxbench@0.1.0
