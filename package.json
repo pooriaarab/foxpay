@@ -1,6 +1,6 @@
 {
   "name": "foxpay-agent",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Agent payments with spend caps and approval for each payment.",
   "type": "module",
   "license": "MIT",
