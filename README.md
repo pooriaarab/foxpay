@@ -204,7 +204,7 @@ method reasons below.
 |---|---|
 | `vault`, `browser` | A foxvault vault (with a gate that has a `fill` grant for the merchant) and the WebExtension `browser` object. |
 | `card` | `{ number, details }`: the handle of the card number and the handle of `"MM/YY CVC"`. |
-| `provider` | Or a `VirtualCardProvider` with `createCard({ intentId, merchant, amount })` that returns `{ id, number, exp, cvc }`. |
+| `provider` | Or a `VirtualCardProvider` with `createCard({ intentId, merchant, amount })` that returns `{ id, number, exp, cvc }`, and an optional `cancelCard(id)` that foxpay calls when the payment fails before submit. |
 | `fields` | `{ number, exp, cvc }`: CSS selectors in the checkout page. |
 | `total`, `submit` | The selector of the total text and of the pay button. |
 | `currency` | The merchant currency. foxpay never reads it from the page. |
@@ -214,7 +214,10 @@ method reasons below.
 
 Reasons: `bad-target`, `no-tab`, `http`, `merchant-mismatch`, `page-changed`,
 `amount-changed`, `no-total`, `no-card`, `domain`, `locked`,
-`provider-error`, `not-found`, and every foxvault fill reason.
+`provider-error`, `not-found`, and every foxvault fill reason. When a step
+fails after the number fill, foxpay clears the card fields first. When the
+submit script starts but its result is lost, the status is `unsettled` with
+`submit-unknown`, because the order may be placed.
 
 ### `x402(options)`
 
