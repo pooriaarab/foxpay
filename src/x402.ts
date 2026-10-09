@@ -121,7 +121,7 @@ export function x402(options: X402Options): PayMethod {
     if (!Number.isSafeInteger(amount) || !Number.isSafeInteger(timeout) || timeout <= 0) throw new PayRefusal("bad-requirements", "The 402 amount or timeout is not a whole number that fits.");
     const accepted: PaymentRequirements = { scheme: "exact", network: BASE_SEPOLIA.network, amount: fits.amount as string, asset: fits.asset as string, payTo: fits.payTo as string, maxTimeoutSeconds: timeout, extra: { name: BASE_SEPOLIA.name, version: BASE_SEPOLIA.version } };
     const hold: Hold = { url: url.href, resource: { url: String(resource.url) }, accepted };
-    return { amount, currency: "USDC", payee: `${accepted.payTo} on ${BASE_SEPOLIA.network}`, hold };
+    return { amount, currency: "USDC", payee: `${accepted.payTo} on ${BASE_SEPOLIA.network}`, details: { url: url.href, resource: String(resource.url) }, hold };
   }
 
   // Before foxgate uses the token: the vault is open, and the 402 still asks for the approved payment (X12, X16).
