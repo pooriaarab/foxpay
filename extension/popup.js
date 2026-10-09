@@ -10,7 +10,7 @@ function build(tag, props, children = []) {
 }
 // USDC is XTS in foxgate: whole atomic units, 6 decimals.
 const money = (value, currency) => (currency === "USD" ? `$${(value / 100).toFixed(2)}` : (value / 1e6).toFixed(6));
-const label = (currency) => (currency === "XTS" ? "test USDC" : currency);
+const label = (currency) => (currency === "XTS" ? "Base Sepolia USDC" : currency);
 
 // Show an answer and count it in data-runs, so a repeated answer is still new.
 function answer(output, text) {

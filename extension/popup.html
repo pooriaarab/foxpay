@@ -2,12 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>foxpay demo</title>
+    <title>foxpay</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <h1>foxpay</h1>
-    <p class="muted">Test cards and testnet only. No money moves.</p>
+    <p class="muted">Sandbox cards and the Base Sepolia network only. No real money moves.</p>
 
     <section>
       <h2>Budget</h2>
@@ -40,7 +40,7 @@
     <details>
       <summary>Simulated agent: paid API (x402)</summary>
       <label>URL <input id="api-url" /></label>
-      <label>Amount in test USDC units (6 decimals) <input id="api-amount" inputmode="numeric" /></label>
+      <label>Amount in Base Sepolia USDC units (6 decimals) <input id="api-amount" inputmode="numeric" /></label>
       <label>Reason <input id="api-reason" /></label>
       <label>Idempotency key <input id="api-key" /></label>
       <button id="call">Call the paid API</button>
@@ -49,18 +49,18 @@
 
     <details>
       <summary>Setup: paid API</summary>
-      <p class="muted">Base Sepolia test wallets only.</p>
-      <label>Test wallet key <input id="wallet-key" autocomplete="off" /></label>
+      <p class="muted">Base Sepolia wallets only. Never use a mainnet key.</p>
+      <label>Base Sepolia wallet key <input id="wallet-key" autocomplete="off" /></label>
       <label>API host <input id="api-host" value="api.localhost" /></label>
       <label>Recipient address <input id="pay-to" /></label>
-      <label>Spend cap in test USDC <input id="api-cap" value="0.05" /></label>
+      <label>Spend cap in Base Sepolia USDC <input id="api-cap" value="0.05" /></label>
       <button id="setup-api">Save</button>
       <output id="setup-api-result"></output>
     </details>
 
     <details>
       <summary>Setup</summary>
-      <label>Test card number <input id="card-number" autocomplete="off" /></label>
+      <label>Sandbox card number <input id="card-number" autocomplete="off" /></label>
       <label>Expiry (MM/YY) <input id="card-exp" autocomplete="off" /></label>
       <label>CVC <input id="card-cvc" autocomplete="off" /></label>
       <label>Shop host <input id="shop-host" value="shop.localhost" /></label>
