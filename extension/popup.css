@@ -1,0 +1,13 @@
+body { font: 13px/1.4 system-ui, sans-serif; width: 360px; margin: 0; padding: 12px; color: #1d2330; }
+h1 { font-size: 18px; margin: 0; }
+h2 { font-size: 14px; margin: 14px 0 6px; }
+ul { list-style: none; margin: 0; padding: 0; }
+li { border: 1px solid #dde; border-radius: 6px; padding: 8px; margin: 0 0 6px; }
+pre { white-space: pre-wrap; word-break: break-all; background: #f5f6f8; padding: 6px; font-size: 11px; margin: 6px 0; }
+label { display: block; margin: 6px 0 2px; }
+input { width: 100%; box-sizing: border-box; padding: 4px; }
+button { margin: 6px 6px 0 0; }
+.muted { color: #667; }
+.approve { background: #166534; color: #fff; border: 0; border-radius: 4px; padding: 4px 10px; }
+details { margin-top: 12px; }
+output { display: block; margin-top: 6px; font-weight: 600; }

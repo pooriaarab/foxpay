@@ -3,12 +3,49 @@
   <head>
     <meta charset="utf-8" />
     <title>foxpay demo</title>
+    <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
     <h1>foxpay</h1>
-    <p>Agent payments with spend caps and approval for each payment.</p>
-    <!-- Show foxpay working here. The E2E test reads #value. -->
-    <p>Status: <output id="value"></output></p>
+    <p class="muted">Test cards only. No money moves.</p>
+
+    <section>
+      <h2>Budget</h2>
+      <ul id="budget"></ul>
+    </section>
+
+    <section>
+      <h2>Waiting for you</h2>
+      <ul id="pending"></ul>
+      <p class="muted">Approve pays this exact action one time.</p>
+      <output id="approve-result"></output>
+    </section>
+
+    <section>
+      <h2>Receipts</h2>
+      <ul id="receipts"></ul>
+    </section>
+
+    <details>
+      <summary>Simulated agent</summary>
+      <label>Merchant <input id="merchant" value="shop.localhost" /></label>
+      <label>Amount in cents <input id="amount" inputmode="numeric" /></label>
+      <label>Reason <input id="reason" /></label>
+      <label>Idempotency key <input id="key" /></label>
+      <button id="ask">Ask to pay</button>
+      <output id="ask-result"></output>
+    </details>
+
+    <details>
+      <summary>Setup</summary>
+      <label>Test card number <input id="card-number" autocomplete="off" /></label>
+      <label>Expiry (MM/YY) <input id="card-exp" autocomplete="off" /></label>
+      <label>CVC <input id="card-cvc" autocomplete="off" /></label>
+      <label>Shop host <input id="shop-host" value="shop.localhost" /></label>
+      <label>Spend cap in USD <input id="shop-cap" value="100" /></label>
+      <button id="setup">Save</button>
+      <output id="setup-result"></output>
+    </details>
     <script src="popup.js"></script>
   </body>
 </html>
