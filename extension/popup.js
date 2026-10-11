@@ -8,6 +8,17 @@ function build(tag, props, children = []) {
   node.append(...children);
   return node;
 }
+// A letter avatar for the merchant. The hue comes from the name, so one
+// merchant keeps one color. style.setProperty is CSSOM, which the CSP allows.
+function siteIcon(site) {
+  const box = Object.assign(document.createElement("span"), { className: "site-icon", textContent: (site[0] ?? "?").toUpperCase() });
+  let hue = 0;
+  for (const c of site) hue = (hue * 31 + c.charCodeAt(0)) % 360;
+  box.style.setProperty("--hue", String(hue));
+  box.setAttribute("aria-hidden", "true");
+  return box;
+}
+const seen = new Set();
 // USDC is XTS in foxgate: whole atomic units, 6 decimals.
 const money = (value, currency) => (currency === "USD" ? `$${(value / 100).toFixed(2)}` : (value / 1e6).toFixed(6));
 const label = (currency) => (currency === "XTS" ? "Base Sepolia USDC" : currency);
@@ -26,24 +37,34 @@ async function render() {
   $("budget").replaceChildren(...state.budget.map((b) => build("li", { textContent: `${label(b.currency)}: cap ${money(b.cap, b.currency)}, spent ${money(b.spent, b.currency)}, left ${money(b.cap - b.spent, b.currency)}` })));
   $("pending").replaceChildren(
     ...state.pending.map(({ requestId, text, intent: i }) => {
-      const approve = build("button", { className: "approve", textContent: "Approve" });
+      const approve = build("button", { className: "approve primary", textContent: "Approve" });
       approve.addEventListener("click", async () => {
         const result = await send("approve", { id: i.id, requestId });
         $("approve-body").textContent = result.body ?? "";
         await render();
         answer($("approve-result"), shown(result));
       });
-      const reject = build("button", { textContent: "Reject" });
+      const reject = build("button", { className: "reject ghost", textContent: "Deny" });
       reject.addEventListener("click", async () => {
         const result = await send("reject", { requestId });
         await render();
         answer($("approve-result"), shown(result));
       });
-      const summary = build("div", { className: "summary", textContent: `Pay ${money(i.amount, i.currency)} ${i.currency} to ${i.merchant} for: ${i.reason}` });
-      return build("li", {}, [summary, build("pre", { textContent: text }), approve, reject]);
+      const summary = build("div", { className: "summary text", textContent: `Pay ${money(i.amount, i.currency)} ${i.currency} to ${i.merchant} for: ${i.reason}` });
+      const head = build("div", { className: "ask-head" }, [siteIcon(i.merchant), build("span", { className: "site", textContent: i.merchant })]);
+      const answers = build("div", { className: "answers" }, [reject, approve]);
+      // Only a new card animates in; a re-render keeps the others still.
+      const li = build("li", { className: seen.has(requestId) ? "ask" : "ask ask-new" }, [head, summary, build("p", { className: "caption", textContent: "The exact action:" }), build("pre", { textContent: text }), answers]);
+      seen.add(requestId);
+      return li;
     }),
   );
-  $("receipts").replaceChildren(...state.receipts.map((r) => build("li", { textContent: receipt(r) })));
+  $("receipts").replaceChildren(
+    ...state.receipts.map((r) => {
+      const ok = r.status === "submitted" || r.status === "paid";
+      return build("li", { className: ok ? "" : "bad" }, [build("span", { className: ok ? "dot ok" : "dot bad" }), receipt(r)]);
+    }),
+  );
 }
 
 $("setup").addEventListener("click", async () => {

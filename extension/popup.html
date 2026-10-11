@@ -6,25 +6,29 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <h1>foxpay</h1>
-    <p class="muted">Sandbox cards and the Base Sepolia network only. No real money moves.</p>
+    <header>
+      <img class="mark" src="icons/icon-48.png" alt="" width="22" height="22" />
+      <h1>foxpay</h1>
+      <span class="chip sandbox">Sandbox</span>
+    </header>
+    <p class="muted lead">Sandbox cards and the Base Sepolia network only. No real money moves.</p>
 
     <section>
       <h2>Budget</h2>
-      <ul id="budget"></ul>
+      <ul id="budget" class="empty-note"></ul>
     </section>
 
     <section>
       <h2>Waiting for you</h2>
-      <ul id="pending"></ul>
-      <p class="muted">Approve pays this exact action one time.</p>
+      <ul id="pending" class="empty-note"></ul>
+      <p class="muted pending-hint">Approve pays this exact action one time.</p>
       <output id="approve-result"></output>
       <pre id="approve-body"></pre>
     </section>
 
     <section>
       <h2>Receipts</h2>
-      <ul id="receipts"></ul>
+      <ul id="receipts" class="empty-note"></ul>
     </section>
 
     <details>
@@ -33,7 +37,7 @@
       <label>Amount in cents <input id="amount" inputmode="numeric" /></label>
       <label>Reason <input id="reason" /></label>
       <label>Idempotency key <input id="key" /></label>
-      <button id="ask">Ask to pay</button>
+      <button id="ask" class="primary">Ask to pay</button>
       <output id="ask-result"></output>
     </details>
 
@@ -43,7 +47,7 @@
       <label>Amount in Base Sepolia USDC units (6 decimals) <input id="api-amount" inputmode="numeric" /></label>
       <label>Reason <input id="api-reason" /></label>
       <label>Idempotency key <input id="api-key" /></label>
-      <button id="call">Call the paid API</button>
+      <button id="call" class="primary">Call the paid API</button>
       <output id="call-result"></output>
     </details>
 
