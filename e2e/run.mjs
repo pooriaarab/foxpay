@@ -112,6 +112,8 @@ try {
   check("E2: the card field stays empty", "", await cardValue(big));
   check("E2: the shop has no new order", 1, shopServer.state.orders.length);
   check("E2: no approval waits", 0, (await texts(popup, "#pending li")).length);
+  // On Ichabod a session slows with each open tab, so close it.
+  await big.close();
 
   // E5: the budget and the receipts.
   check("E5: the budget shows the cap and what is left", ["USD: cap $100.00, spent $26.00, left $74.00"], await texts(popup, "#budget li"));
