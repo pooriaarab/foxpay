@@ -54,7 +54,7 @@ async function render() {
       const head = build("div", { className: "ask-head" }, [siteIcon(i.merchant), build("span", { className: "site", textContent: i.merchant })]);
       const answers = build("div", { className: "answers" }, [reject, approve]);
       // Only a new card animates in; a re-render keeps the others still.
-      const li = build("li", { className: seen.has(requestId) ? "ask" : "ask ask-new" }, [head, summary, build("p", { className: "caption", textContent: "The exact action:" }), build("pre", { textContent: text }), answers]);
+      const li = build("li", { className: seen.has(requestId) ? "ask" : "ask ask-new" }, [head, summary, build("details", { className: "raw" }, [build("summary", { textContent: "Details" }), build("p", { className: "caption", textContent: "The exact action:" }), build("pre", { textContent: text })]), answers]);
       seen.add(requestId);
       return li;
     }),
