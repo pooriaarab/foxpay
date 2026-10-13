@@ -50,11 +50,16 @@ async function render() {
         await render();
         answer($("approve-result"), shown(result));
       });
-      const summary = build("div", { className: "summary text", textContent: `Pay ${money(i.amount, i.currency)} ${i.currency} to ${i.merchant} for: ${i.reason}` });
+      // The line comes from the exact action the token binds, not from the
+      // merchant name the agent gave: the amount, the method and the real
+      // payee (the wallet and network for x402, the host that gets the card).
+      const { amount, currency, method, payee, reason, merchant, details } = JSON.parse(text).args;
+      const summary = build("div", { className: "summary text", textContent: `Pay ${money(amount, currency)} ${currency} by ${method} to ${payee}` });
+      const dest = build("p", { className: "dest", textContent: `${details?.url ? `For ${details.url}. ` : ""}Reason: ${reason}. The agent named the merchant ${merchant}.` });
       const head = build("div", { className: "ask-head" }, [siteIcon(i.merchant), build("span", { className: "site", textContent: i.merchant })]);
       const answers = build("div", { className: "answers" }, [reject, approve]);
       // Only a new card animates in; a re-render keeps the others still.
-      const li = build("li", { className: seen.has(requestId) ? "ask" : "ask ask-new" }, [head, summary, build("details", { className: "raw" }, [build("summary", { textContent: "Details" }), build("p", { className: "caption", textContent: "The exact action:" }), build("pre", { textContent: text })]), answers]);
+      const li = build("li", { className: seen.has(requestId) ? "ask" : "ask ask-new" }, [head, summary, dest, build("details", { className: "raw" }, [build("summary", { textContent: "Details" }), build("p", { className: "caption", textContent: "The exact action:" }), build("pre", { textContent: text })]), answers]);
       seen.add(requestId);
       return li;
     }),
