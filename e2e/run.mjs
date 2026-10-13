@@ -41,6 +41,8 @@ const setValues = (page, values) =>
   page.evaluate((v) => {
     for (const [selector, value] of Object.entries(v)) document.querySelector(selector).value = value;
   }, values);
+// The text of each match the user can see: "hidden" for a node that is not displayed (for example inside a closed <details>).
+const visible = (page, selector) => page.evaluate((s) => [...document.querySelectorAll(s)].map((el) => (el.checkVisibility() ? el.innerText.replace(/\s+/g, " ").trim() : "hidden")), selector);
 const texts = (page, selector) => page.evaluate((s) => [...document.querySelectorAll(s)].map((el) => el.textContent.replace(/\s+/g, " ").trim()), selector);
 
 const remote = browserMode() === "ichabod";
@@ -94,9 +96,10 @@ try {
   await setValues(popup, { "#merchant": SHOP_HOST, "#amount": "2600", "#reason": "Trail Mug for Ada", "#key": "order-e2e-0001" });
   check("E1: the agent's request waits for approval", "ask", await press(popup, "#ask", "#ask-result"));
   check("E1: the card is not filled before approval", "", await cardValue(checkout));
-  const pending = await texts(popup, "#pending li .summary");
+  const pending = await visible(popup, "#pending li .summary");
   check("E5: the popup lists one waiting approval", 1, pending.length);
-  check("E5: the approval shows merchant, amount, currency, and reason", true, new RegExp(esc(SHOP_HOST)).test(pending[0] ?? "") && /\$26\.00/.test(pending[0] ?? "") && /USD/.test(pending[0] ?? "") && /Trail Mug for Ada/.test(pending[0] ?? ""));
+  check("E5: the user sees the amount, the method and the host that gets the card", true, (pending[0] ?? "").startsWith("Pay $26.00 USD by card to ") && new RegExp(esc(SHOP_HOST)).test(pending[0] ?? ""));
+  check("E5: the user sees the reason", true, /Reason: Trail Mug for Ada\./.test((await visible(popup, "#pending li .dest"))[0] ?? ""));
   check("E5: the exact action JSON holds the amount", true, (await texts(popup, "#pending li pre"))[0]?.includes('"amount":2600'));
   check("E1: one approval submits the order", "submitted", await press(popup, "#pending li .approve", "#approve-result"));
   const orders = () => shopServer.state.orders.map((o) => ({ total: o.total, cardLast4: o.cardLast4, skus: o.lines.map((l) => l.sku), name: o.name }));
@@ -126,8 +129,9 @@ try {
   await setValues(popup, { "#api-url": `${paid.url}/weather`, "#api-amount": "10000", "#api-reason": "Weather for the trip", "#api-key": "call-e2e-0001" });
   check("E3: the paid call waits for approval", "ask", await press(popup, "#call", "#call-result"));
   check("E3: nothing is signed before approval", 0, signed().length);
-  const apiPending = await texts(popup, "#pending li .summary");
-  check("E5: the approval shows the amount in test USDC and the API host", [`Pay 0.010000 USDC to ${API_HOST} for: Weather for the trip`], apiPending);
+  const apiPending = await visible(popup, "#pending li .summary");
+  check("E5: the user sees the amount in test USDC, the method, and the wallet and network that get it", [`Pay 0.010000 USDC by x402 to ${PAY_TO} on eip155:84532`], apiPending);
+  check("E5: the user sees the paid URL and the reason", true, ((await visible(popup, "#pending li .dest"))[0] ?? "").startsWith(`For ${paid.url}/weather. Reason: Weather for the trip.`));
   check("E5: the exact action JSON names the recipient and the network", true, (await texts(popup, "#pending li pre"))[0]?.includes(`"payee":"${PAY_TO} on eip155:84532"`));
   check("E3: one approval pays", "paid", await press(popup, "#pending li .approve", "#approve-result"));
   check("E3: the popup shows the paid answer", '{"forecast":"sunny"}', await popup.evaluate(() => document.querySelector("#approve-body").textContent));
