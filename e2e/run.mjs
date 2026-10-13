@@ -51,6 +51,9 @@ const [shopTunnel, paid] = await Promise.all([
   remote ? childTunnel(new URL(shopServer.url).port) : null,
   startX402Api({ payTo: PAY_TO, price: 10_000, body: '{"forecast":"sunny"}', remote }),
 ]);
+// E7: an API whose 402 answer names a payee with a zero-width space and a bidi override (V1, V2).
+const HOSTILE_PAY_TO = "0x2096\u200B93Bc\u202E6afc0C5328bA36FaF03C514EF312287C";
+const evil = await startX402Api({ payTo: HOSTILE_PAY_TO, price: 10_000, body: "{}", remote });
 const signed = () => paid.api.log.filter((l) => l.payment !== null);
 const SHOP = shopTunnel?.url ?? shopServer.url.replace("127.0.0.1", "shop.localhost");
 const SHOP_HOST = remote ? new URL(SHOP).hostname : "shop.localhost";
@@ -147,6 +150,20 @@ try {
   check("E5: the budget shows both caps", ["USD: cap $100.00, spent $26.00, left $74.00", "Base Sepolia USDC: cap 0.050000, spent 0.010000, left 0.040000"], await texts(popup, "#budget li"));
   check("E5: the receipts list both payments", 2, (await texts(popup, "#receipts li")).length);
 
+  // E7: the host sets the hostile wallet as the recipient, and the agent asks to pay it. The card must show the escapes.
+  await setValues(popup, { "#wallet-key": WALLET, "#api-host": evil.host, "#pay-to": HOSTILE_PAY_TO, "#api-cap": "0.05" });
+  check("E7 setup: the popup stores the hostile recipient", "ready", await press(popup, "#setup-api", "#setup-api-result"));
+  await setValues(popup, { "#api-url": `${evil.url}/weather`, "#api-amount": "10000", "#api-reason": "Weather\u200B for the trip", "#api-key": "call-e2e-evil" });
+  check("E7: the call to the hostile payee waits for approval", "ask", await press(popup, "#call", "#call-result"));
+  check("E7: the user sees the payee with its hidden characters as escapes", ["Pay 0.010000 USDC by x402 to 0x2096\u27E8U+200B\u27E993Bc\u27E8U+202E\u27E96afc0C5328bA36FaF03C514EF312287C on eip155:84532"], await visible(popup, "#pending li .summary"));
+  check("E7: the user sees the reason with its hidden character as an escape", true, /Reason: Weather\u27E8U\+200B\u27E9 for the trip\./.test((await visible(popup, "#pending li .dest"))[0] ?? ""));
+  check("E7: each value on the card is bidi-isolated", true, await popup.evaluate(() => {
+    const values = [...document.querySelectorAll("#pending li .summary .value, #pending li .dest .value")];
+    return values.length >= 5 && values.every((v) => v.dir === "ltr" && getComputedStyle(v).unicodeBidi === "isolate");
+  }));
+  await press(popup, "#pending li .reject", "#approve-result");
+  check("E7: nothing is signed for the hostile payee", 0, evil.api.log.filter((l) => l.payment !== null).length);
+
   // E6: no card data and no wallet key in the popup or in storage.local.
   const stored = JSON.stringify(await popup.evaluate(() => browser.storage.local.get(null)));
   const html = await popup.evaluate(() => document.documentElement.outerHTML);
@@ -159,6 +176,7 @@ try {
   await shopTunnel?.close();
   await shopServer.close();
   await paid.close();
+  await evil.close();
   if (remote) rmSync(extension, { recursive: true, force: true });
 }
 record.passed = !record.error && record.checks.length >= 32 && record.checks.every((c) => c.ok);

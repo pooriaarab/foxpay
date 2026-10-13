@@ -87,6 +87,21 @@ facilitator.
 | X12 | The vault is locked. | Refuse `locked` before the token is used. | `tests/x402.test.ts` |
 | X13 | The signature is wrong, so a real facilitator would refuse it. | The EIP-712 digest and the signature are equal to those from viem. The signer address recovers. | `tests/eip712.test.ts` |
 
+## What the approval card shows (`src/visible.ts`)
+
+The card shows the payee, the merchant name, the paid URL, the method and
+the reason as text. If that text can look like a different value, the
+human approves a payment to one recipient and the token binds another.
+`visibleValue` turns each value into the text the card shows. foxgate
+has the same function (foxgate#67).
+
+| # | Failure mode | Wanted behaviour | Test |
+|---|---|---|---|
+| V1 | A bidi control (U+202A-U+202E, U+2066-U+2069) reorders a payee, so a wallet or host reads as another one. | Each format character shows as a visible escape, for example `⟨U+202E⟩`. | `tests/visible.test.ts` |
+| V2 | An invisible character (U+200B-U+200F, U+2060, U+FEFF, U+00AD) makes two payees look the same. | Each one shows as a visible escape. | `tests/visible.test.ts` |
+| V3 | A control character (C0, DEL, C1) or a line or paragraph separator collapses, so a newline in the reason looks like a space. | Each one shows as a visible escape, for example `⟨U+000A⟩`. | `tests/visible.test.ts` |
+| V4 | A value that is not a string shows as `[object Object]`, and an empty one shows as nothing. | A string shows as it is. Any other value shows as its JSON. An empty string shows as `""`. | `tests/visible.test.ts` |
+
 ## Firefox E2E
 
 | # | Failure mode | Wanted behaviour | Test |
@@ -97,6 +112,7 @@ facilitator.
 | E4 | A replayed payment header pays again. | The fake API refuses it. A second `complete` gives the same receipt. | `e2e/run.mjs` |
 | E5 | The popup shows a wrong budget. | The popup shows the cap, the amount left, the waiting approvals, and the receipts. | `e2e/run.mjs` |
 | E6 | The card number or the wallet key leaks into the popup or `storage.local`. | Neither holds any of them. | `e2e/run.mjs` |
+| E7 | The popup shows a payee with a bidi override or a zero-width character raw, so the visible recipient differs from the one the token binds (V1, V2). | The card line shows the escapes, outside Details, and each value is bidi-isolated. | `e2e/run.mjs` |
 
 ## AMO release build and listed submission (`scripts/amo-listing.mjs`)
 
