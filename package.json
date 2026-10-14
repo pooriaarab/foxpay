@@ -1,7 +1,7 @@
 {
   "name": "foxpay-agent",
   "version": "0.1.4",
-  "description": "Agent payments with spend caps and approval for each payment.",
+  "description": "Agent payment intents with spend caps, configurable approvals, card fill, Base Sepolia x402 test payments, and stored receipts.",
   "type": "module",
   "license": "MIT",
   "author": "Pooria Arab",
@@ -57,5 +57,20 @@
     "@noble/hashes": "^2.4.0",
     "foxgate": "^0.1.0",
     "foxvault": "^0.1.0"
-  }
+  },
+  "keywords": [
+    "agent-payments",
+    "x402",
+    "base-sepolia",
+    "usdc",
+    "firefox",
+    "webextension",
+    "card-fill",
+    "spend-cap",
+    "payment-intent",
+    "idempotency",
+    "foxgate",
+    "foxvault",
+    "typescript"
+  ]
 }
