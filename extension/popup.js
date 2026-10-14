@@ -1,6 +1,8 @@
 // The demo popup. It shows the budget, the payments that wait for you, and
 // the receipts. The card goes to the background one time, at setup, and the
 // fields are cleared. After that the popup sees only summaries.
+import { visibleValue } from "../src/visible.ts";
+
 const send = (type, extra = {}) => browser.runtime.sendMessage({ type, ...extra });
 const $ = (id) => document.getElementById(id);
 function build(tag, props, children = []) {
@@ -19,6 +21,13 @@ function siteIcon(site) {
   return box;
 }
 const seen = new Set();
+// One value on the card: hidden characters shown as escapes (V1-V4), in
+// its own span, isolated from the text around it (E7).
+function boundValue(v) {
+  const span = build("span", { className: "value", textContent: visibleValue(v) });
+  span.dir = "ltr";
+  return span;
+}
 // USDC is XTS in foxgate: whole atomic units, 6 decimals.
 const money = (value, currency) => (currency === "USD" ? `$${(value / 100).toFixed(2)}` : (value / 1e6).toFixed(6));
 const label = (currency) => (currency === "XTS" ? "Base Sepolia USDC" : currency);
@@ -30,7 +39,7 @@ function answer(output, text) {
 }
 const shown = (r) => (typeof r === "string" ? r : r.status === "refused" || r.status === "error" ? `${r.status}: ${r.reason}` : r.status);
 
-const receipt = (r) => `${r.status}: ${money(r.amount, r.currency)} ${r.currency} to ${r.merchant}, ${r.reason}${r.proof.last4 ? `, card ending ${r.proof.last4}` : ""}${r.proof.transaction ? `, transaction ${r.proof.transaction.slice(0, 10)}…` : ""}${r.failure ? ` (${r.failure})` : ""}`;
+const receipt = (r) => `${r.status}: ${money(r.amount, r.currency)} ${r.currency} to ${visibleValue(r.merchant)}, ${visibleValue(r.reason)}${r.proof.last4 ? `, card ending ${r.proof.last4}` : ""}${r.proof.transaction ? `, transaction ${r.proof.transaction.slice(0, 10)}…` : ""}${r.failure ? ` (${r.failure})` : ""}`;
 
 async function render() {
   const state = await send("state");
@@ -50,11 +59,17 @@ async function render() {
         await render();
         answer($("approve-result"), shown(result));
       });
-      const summary = build("div", { className: "summary text", textContent: `Pay ${money(i.amount, i.currency)} ${i.currency} to ${i.merchant} for: ${i.reason}` });
-      const head = build("div", { className: "ask-head" }, [siteIcon(i.merchant), build("span", { className: "site", textContent: i.merchant })]);
+      // The line comes from the exact action the token binds, not from the
+      // merchant name the agent gave: the amount, the method and the real
+      // payee (the wallet and network for x402, the host that gets the card).
+      const { amount, currency, method, payee, reason, merchant, details } = JSON.parse(text).args;
+      const summary = build("div", { className: "summary text" }, ["Pay ", boundValue(`${money(amount, currency)} ${currency}`), " by ", boundValue(method), " to ", boundValue(payee)]);
+      const dest = build("p", { className: "dest" }, [...(details?.url ? ["For ", boundValue(details.url), ". "] : []), "Reason: ", boundValue(reason), ". The agent named the merchant ", boundValue(merchant), "."]);
+      const site = visibleValue(i.merchant);
+      const head = build("div", { className: "ask-head" }, [siteIcon(site), build("span", { className: "site", textContent: site })]);
       const answers = build("div", { className: "answers" }, [reject, approve]);
       // Only a new card animates in; a re-render keeps the others still.
-      const li = build("li", { className: seen.has(requestId) ? "ask" : "ask ask-new" }, [head, summary, build("p", { className: "caption", textContent: "The exact action:" }), build("pre", { textContent: text }), answers]);
+      const li = build("li", { className: seen.has(requestId) ? "ask" : "ask ask-new" }, [head, summary, dest, build("details", { className: "raw" }, [build("summary", { textContent: "Details" }), build("p", { className: "caption", textContent: "The exact action:" }), build("pre", { textContent: text })]), answers]);
       seen.add(requestId);
       return li;
     }),

@@ -7,3 +7,4 @@ export { addressOf, authorizationDigest, checksumAddress, recoverAuthorizer, sig
 export type { Authorization, TokenDomain } from "./eip712.js";
 export { BASE_SEPOLIA, decodeHeader, encodeHeader, x402 } from "./x402.js";
 export type { PaymentPayload, PaymentRequirements, X402Options } from "./x402.js";
+export { visibleValue } from "./visible.js";

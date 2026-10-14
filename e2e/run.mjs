@@ -7,9 +7,20 @@
 // sends *.localhost to the loopback address. The card is a test card; no
 // money moves. The paid API is a local fake x402 API on api.localhost, with
 // a test wallet key and Base Sepolia values.
-import { launch, poll, writeArtifact } from "create-foxkit/e2e";
+//
+// With FOXKIT_BROWSER=ichabod, Firefox runs on Ichabod and cannot reach
+// 127.0.0.1, so both servers get a public tunnel URL: the shop in a child
+// process (its own origin, see e2e/child-tunnel.mjs), the API on this
+// process's tunnel. The popup then gets the tunnel hosts, and the installed
+// copy of the extension gets a host permission for *.trycloudflare.com, as
+// dist-ext/ has one for *.localhost. dist-ext/ itself does not change.
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { browserMode, launch, poll, writeArtifact } from "create-foxkit/e2e";
 import { sites, startServer } from "foxbench";
 import { addressOf } from "../dist/index.js";
+import { childTunnel } from "./child-tunnel.mjs";
 import { startX402Api } from "./x402-api.mjs";
 
 const CARD = { number: "4242424242424242", exp: "12/30", cvc: "737" };
@@ -30,12 +41,37 @@ const setValues = (page, values) =>
   page.evaluate((v) => {
     for (const [selector, value] of Object.entries(v)) document.querySelector(selector).value = value;
   }, values);
+// The text of each match the user can see: "hidden" for a node that is not displayed (for example inside a closed <details>).
+const visible = (page, selector) => page.evaluate((s) => [...document.querySelectorAll(s)].map((el) => (el.checkVisibility() ? el.innerText.replace(/\s+/g, " ").trim() : "hidden")), selector);
 const texts = (page, selector) => page.evaluate((s) => [...document.querySelectorAll(s)].map((el) => el.textContent.replace(/\s+/g, " ").trim()), selector);
 
+const remote = browserMode() === "ichabod";
 const shopServer = await startServer({ sites });
-const paid = await startX402Api({ payTo: PAY_TO, price: 10_000, body: '{"forecast":"sunny"}' });
+const [shopTunnel, paid] = await Promise.all([
+  remote ? childTunnel(new URL(shopServer.url).port) : null,
+  startX402Api({ payTo: PAY_TO, price: 10_000, body: '{"forecast":"sunny"}', remote }),
+]);
+// E7: an API whose 402 answer names a payee with a zero-width space and a bidi override (V1, V2).
+const HOSTILE_PAY_TO = "0x2096\u200B93Bc\u202E6afc0C5328bA36FaF03C514EF312287C";
+const evil = await startX402Api({ payTo: HOSTILE_PAY_TO, price: 10_000, body: "{}", remote });
 const signed = () => paid.api.log.filter((l) => l.payment !== null);
-const SHOP = shopServer.url.replace("127.0.0.1", "shop.localhost");
+const SHOP = shopTunnel?.url ?? shopServer.url.replace("127.0.0.1", "shop.localhost");
+const SHOP_HOST = remote ? new URL(SHOP).hostname : "shop.localhost";
+const API_HOST = paid.host;
+const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+// The extension that Firefox installs. Remote: a copy with the tunnel host permission.
+function extensionDir() {
+  if (!remote) return "dist-ext";
+  const dir = mkdtempSync(join(tmpdir(), "foxpay-e2e-"));
+  cpSync("dist-ext", dir, { recursive: true });
+  const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
+  manifest.host_permissions = [...manifest.host_permissions, "https://*.trycloudflare.com/*"];
+  writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest, null, 2));
+  return dir;
+}
+const extension = extensionDir();
+record.mode = remote ? "ichabod" : "local";
+record.hosts = { shop: SHOP_HOST, api: API_HOST };
 const addToCart = (form) => fetch(`${shopServer.url}/shop/cart/add`, { method: "POST", body: new URLSearchParams(form), redirect: "manual" });
 // The agent fills the shipping part. foxpay fills only the card.
 async function openCheckout() {
@@ -47,25 +83,26 @@ const cardValue = (page) => page.evaluate(() => document.querySelector("#card")?
 
 let fox;
 try {
-  fox = await launch({ extension: "dist-ext", headless: !process.argv.includes("--headed") });
+  fox = await launch({ extension, headless: !process.argv.includes("--headed") });
   record.firefox = await fox.browser.version();
   const popup = await fox.openExtensionPage("popup.html");
   await poll(popup, () => document.body.dataset.ready === "1");
 
   // The user stores the test card and sets a $100 cap for the shop.
-  await setValues(popup, { "#card-number": CARD.number, "#card-exp": CARD.exp, "#card-cvc": CARD.cvc, "#shop-host": "shop.localhost", "#shop-cap": "100" });
+  await setValues(popup, { "#card-number": CARD.number, "#card-exp": CARD.exp, "#card-cvc": CARD.cvc, "#shop-host": SHOP_HOST, "#shop-cap": "100" });
   check("setup: the popup stores the card and the cap", "ready", await press(popup, "#setup", "#setup-result"));
   check("E6: the card fields are empty after setup", ["", "", ""], await popup.evaluate(() => ["#card-number", "#card-exp", "#card-cvc"].map((s) => document.querySelector(s).value)));
 
   // E1: a $26.00 order (Trail Mug $18 + $8 shipping), under the cap.
   await addToCart({ sku: "trail-mug", qty: "1", color: "Slate" });
   const checkout = await openCheckout();
-  await setValues(popup, { "#merchant": "shop.localhost", "#amount": "2600", "#reason": "Trail Mug for Ada", "#key": "order-e2e-0001" });
+  await setValues(popup, { "#merchant": SHOP_HOST, "#amount": "2600", "#reason": "Trail Mug for Ada", "#key": "order-e2e-0001" });
   check("E1: the agent's request waits for approval", "ask", await press(popup, "#ask", "#ask-result"));
   check("E1: the card is not filled before approval", "", await cardValue(checkout));
-  const pending = await texts(popup, "#pending li .summary");
+  const pending = await visible(popup, "#pending li .summary");
   check("E5: the popup lists one waiting approval", 1, pending.length);
-  check("E5: the approval shows merchant, amount, currency, and reason", true, /shop\.localhost/.test(pending[0] ?? "") && /\$26\.00/.test(pending[0] ?? "") && /USD/.test(pending[0] ?? "") && /Trail Mug for Ada/.test(pending[0] ?? ""));
+  check("E5: the user sees the amount, the method and the host that gets the card", true, (pending[0] ?? "").startsWith("Pay $26.00 USD by card to ") && new RegExp(esc(SHOP_HOST)).test(pending[0] ?? ""));
+  check("E5: the user sees the reason", true, /Reason: Trail Mug for Ada\./.test((await visible(popup, "#pending li .dest"))[0] ?? ""));
   check("E5: the exact action JSON holds the amount", true, (await texts(popup, "#pending li pre"))[0]?.includes('"amount":2600'));
   check("E1: one approval submits the order", "submitted", await press(popup, "#pending li .approve", "#approve-result"));
   const orders = () => shopServer.state.orders.map((o) => ({ total: o.total, cardLast4: o.cardLast4, skus: o.lines.map((l) => l.sku), name: o.name }));
@@ -81,27 +118,30 @@ try {
   check("E2: the card field stays empty", "", await cardValue(big));
   check("E2: the shop has no new order", 1, shopServer.state.orders.length);
   check("E2: no approval waits", 0, (await texts(popup, "#pending li")).length);
+  // On Ichabod a session slows with each open tab, so close it.
+  await big.close();
 
   // E5: the budget and the receipts.
   check("E5: the budget shows the cap and what is left", ["USD: cap $100.00, spent $26.00, left $74.00"], await texts(popup, "#budget li"));
-  check("E5: the popup lists one receipt", ["submitted: $26.00 USD to shop.localhost, Trail Mug for Ada, card ending 4242"], await texts(popup, "#receipts li"));
+  check("E5: the popup lists one receipt", [`submitted: $26.00 USD to ${SHOP_HOST}, Trail Mug for Ada, card ending 4242`], await texts(popup, "#receipts li"));
 
   // E3: an x402 call pays one time, after one approval.
-  await setValues(popup, { "#wallet-key": WALLET, "#api-host": "api.localhost", "#pay-to": PAY_TO, "#api-cap": "0.05" });
+  await setValues(popup, { "#wallet-key": WALLET, "#api-host": API_HOST, "#pay-to": PAY_TO, "#api-cap": "0.05" });
   check("setup: the popup stores the test wallet and the API cap", "ready", await press(popup, "#setup-api", "#setup-api-result"));
   check("E6: the wallet field is empty after setup", "", await popup.evaluate(() => document.querySelector("#wallet-key").value));
   await setValues(popup, { "#api-url": `${paid.url}/weather`, "#api-amount": "10000", "#api-reason": "Weather for the trip", "#api-key": "call-e2e-0001" });
   check("E3: the paid call waits for approval", "ask", await press(popup, "#call", "#call-result"));
   check("E3: nothing is signed before approval", 0, signed().length);
-  const apiPending = await texts(popup, "#pending li .summary");
-  check("E5: the approval shows the amount in test USDC and the API host", ["Pay 0.010000 USDC to api.localhost for: Weather for the trip"], apiPending);
+  const apiPending = await visible(popup, "#pending li .summary");
+  check("E5: the user sees the amount in test USDC, the method, and the wallet and network that get it", [`Pay 0.010000 USDC by x402 to ${PAY_TO} on eip155:84532`], apiPending);
+  check("E5: the user sees the paid URL and the reason", true, ((await visible(popup, "#pending li .dest"))[0] ?? "").startsWith(`For ${paid.url}/weather. Reason: Weather for the trip.`));
   check("E5: the exact action JSON names the recipient and the network", true, (await texts(popup, "#pending li pre"))[0]?.includes(`"payee":"${PAY_TO} on eip155:84532"`));
   check("E3: one approval pays", "paid", await press(popup, "#pending li .approve", "#approve-result"));
   check("E3: the popup shows the paid answer", '{"forecast":"sunny"}', await popup.evaluate(() => document.querySelector("#approve-body").textContent));
   check("E3: the fake API settles one payment from the test wallet", [{ payer: addressOf(WALLET), value: "10000" }], paid.api.settled.map((x) => ({ payer: x.payer, value: x.value })));
 
   // E4: a replayed payment header does not pay again, and neither does a retry.
-  const replay = await fetch(`${paid.url}/weather`, { headers: { "payment-signature": signed()[0].payment } });
+  const replay = await fetch(`${remote ? paid.local : paid.url}/weather`, { headers: { "payment-signature": signed()[0].payment } });
   check("E4: the replayed header gets 402", 402, replay.status);
   check("E4: the fake facilitator names the used nonce", "nonce_used", JSON.parse(atob(replay.headers.get("payment-response"))).errorReason);
   check("E4: a retry with the same key gives the receipt", "paid", await press(popup, "#call", "#call-result"));
@@ -109,6 +149,20 @@ try {
 
   check("E5: the budget shows both caps", ["USD: cap $100.00, spent $26.00, left $74.00", "Base Sepolia USDC: cap 0.050000, spent 0.010000, left 0.040000"], await texts(popup, "#budget li"));
   check("E5: the receipts list both payments", 2, (await texts(popup, "#receipts li")).length);
+
+  // E7: the host sets the hostile wallet as the recipient, and the agent asks to pay it. The card must show the escapes.
+  await setValues(popup, { "#wallet-key": WALLET, "#api-host": evil.host, "#pay-to": HOSTILE_PAY_TO, "#api-cap": "0.05" });
+  check("E7 setup: the popup stores the hostile recipient", "ready", await press(popup, "#setup-api", "#setup-api-result"));
+  await setValues(popup, { "#api-url": `${evil.url}/weather`, "#api-amount": "10000", "#api-reason": "Weather\u200B for the trip", "#api-key": "call-e2e-evil" });
+  check("E7: the call to the hostile payee waits for approval", "ask", await press(popup, "#call", "#call-result"));
+  check("E7: the user sees the payee with its hidden characters as escapes", ["Pay 0.010000 USDC by x402 to 0x2096\u27E8U+200B\u27E993Bc\u27E8U+202E\u27E96afc0C5328bA36FaF03C514EF312287C on eip155:84532"], await visible(popup, "#pending li .summary"));
+  check("E7: the user sees the reason with its hidden character as an escape", true, /Reason: Weather\u27E8U\+200B\u27E9 for the trip\./.test((await visible(popup, "#pending li .dest"))[0] ?? ""));
+  check("E7: each value on the card is bidi-isolated", true, await popup.evaluate(() => {
+    const values = [...document.querySelectorAll("#pending li .summary .value, #pending li .dest .value")];
+    return values.length >= 5 && values.every((v) => v.dir === "ltr" && getComputedStyle(v).unicodeBidi === "isolate");
+  }));
+  await press(popup, "#pending li .reject", "#approve-result");
+  check("E7: nothing is signed for the hostile payee", 0, evil.api.log.filter((l) => l.payment !== null).length);
 
   // E6: no card data and no wallet key in the popup or in storage.local.
   const stored = JSON.stringify(await popup.evaluate(() => browser.storage.local.get(null)));
@@ -119,8 +173,11 @@ try {
   record.error = error instanceof Error ? error.message : String(error);
 } finally {
   await fox?.close();
+  await shopTunnel?.close();
   await shopServer.close();
   await paid.close();
+  await evil.close();
+  if (remote) rmSync(extension, { recursive: true, force: true });
 }
 record.passed = !record.error && record.checks.length >= 32 && record.checks.every((c) => c.ok);
 const path = writeArtifact("artifacts", "e2e", record);
