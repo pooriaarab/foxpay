@@ -1,6 +1,6 @@
 {
   "name": "foxpay-agent",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Agent payment intents with spend caps, configurable approvals, card fill, Base Sepolia x402 test payments, and stored receipts.",
   "type": "module",
   "license": "MIT",
